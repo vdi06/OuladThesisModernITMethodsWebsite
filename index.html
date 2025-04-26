@@ -1,0 +1,3109 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <title>oulad_analysis Export</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: #f8f9fa;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .container {
+      margin-top: 40px;
+      margin-bottom: 40px;
+    }
+    .search-box {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    .accordion-body {
+      background-color: #1e1e1e;
+      color: #f8f9fa;
+    }
+    .accordion-item {
+      border: 1px solid #2d2d2d;
+    }
+    .accordion-button {
+      background-color: #212529;
+      color: #f8f9fa;
+    }
+    .accordion-button.collapsed {
+      background-color: #212529;
+      color: #f8f9fa;
+    }
+    pre {
+      background-color: #2d2d2d;
+      border-radius: 0.5rem;
+      padding: 15px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="display-5 text-center mb-4">Notebook Export – oulad_analysis</h1>
+    <div class="search-box">
+      <input type="text" id="searchInput" class="form-control" placeholder="Keresés..." onkeyup="filterSections(this.value)">
+      <button class="btn btn-danger" onclick="resetSearch()">Törlés</button>
+      <button class="btn btn-info" id="toggleAllBtn" onclick="toggleAllCode()">Összes kód megnyitása</button>
+    </div>
+    <div class="accordion" id="mainAccordion">
+
+      <div class="accordion-item bg-primary">
+        <h2 class="accordion-header" id="heading-sec-0-643eb0cb">
+          <button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-0-643eb0cb">
+            Csomagok telepítése és frissítése
+          </button>
+        </h2>
+        <div id="collapse-sec-0-643eb0cb" class="accordion-collapse collapse">
+          <div class="accordion-body">
+
+<div class="accordion mt-3" id="accordion-code-sec-0-643eb0cb-code-c324b503">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-0-643eb0cb-code-c324b503">
+      <button class="accordion-button collapsed btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-0-643eb0cb-code-c324b503">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-0-643eb0cb-code-c324b503" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'># EXPORT_IGNORE
+
+import os
+import re
+import sys
+import time
+import shutil
+import warnings
+from glob import glob
+from uuid import uuid4
+from datetime import datetime
+from collections import Counter
+from pathlib import Path
+
+import pandas as pd
+import numpy as np
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+import seaborn as sns
+from PIL import Image
+
+from tqdm import tqdm
+from rich.console import Console
+from rich.text import Text
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.decomposition import PCA
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    accuracy_score, f1_score, precision_score, recall_score,
+    confusion_matrix, precision_recall_curve, roc_curve, roc_auc_score, auc,
+    silhouette_score
+)
+
+from scipy.stats import gaussian_kde
+
+import xgboost
+from xgboost import XGBClassifier
+import shap
+
+import nbformat
+import textwrap
+import ast
+import subprocess
+
+from deep_translator import GoogleTranslator
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+notebooks = [f for f in os.listdir('.') if f.endswith('.ipynb')]
+if len(notebooks) != 1:
+    raise FileNotFoundError("Exactly one .ipynb file must exist in the directory.")
+notebook_path = notebooks[0]
+base_name = os.path.splitext(notebook_path)[0]
+
+LOGFILE = f"{base_name}.log"
+FAILED_FILE = f"{base_name}_failed_requirements.txt"
+REQUIREMENTS_FILE = f"{base_name}_requirements.txt"
+python_output_path = f"{base_name}.py"
+text_output_path = f"{base_name}.txt"
+
+console = Console()
+
+builtin_modules = {
+    "os", "sys", "datetime", "subprocess", "ast", "shutil",
+    "rich.console", "rich.text", "rich.progress", "collections", "warnings"
+}
+
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+def log_message(msg, level="INFO", to_file=True):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted = f"[{level}] {timestamp} - {msg}"
+    try:
+        tqdm.write(formatted)
+    except Exception:
+        print(formatted)
+    if to_file:
+        if os.path.exists(LOGFILE):
+            with open(LOGFILE, 'r', encoding="utf-8") as f:
+                existing_content = f.read()
+        else:
+            existing_content = ""
+        with open(LOGFILE, 'w', encoding="utf-8") as f:
+            f.write(formatted + "\n" + existing_content)
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+def extract_imports_from_notebook(notebook_path):
+    with open(notebook_path, 'r', encoding='utf-8') as f:
+        notebook = nbformat.read(f, as_version=4)
+    imports = set()
+    for cell in notebook.cells:
+        if cell.cell_type == 'code':
+            try:
+                tree = ast.parse(cell.source)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            imports.add(alias.name.split('.')[0])
+                    elif isinstance(node, ast.ImportFrom):
+                        if node.module:
+                            imports.add(node.module.split('.')[0])
+            except:
+                continue
+    return imports
+
+def find_first_notebook():
+    for fname in os.listdir():
+        if fname.endswith(".ipynb"):
+            return fname
+    return None
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+def install_required_packages():
+    notebook_name = find_first_notebook()
+    if not notebook_name:
+        log_message("ERROR: No .ipynb file found in the current directory!", level="ERROR")
+        return [], [], False
+
+    log_message(f"Using notebook '{notebook_name}' to extract required packages.")
+    required_packages = extract_imports_from_notebook(notebook_name)
+    if not required_packages:
+        log_message("ERROR: No packages found in the notebook!")
+        return [], [], False
+
+    required_packages = [pkg for pkg in required_packages if pkg not in builtin_modules]
+    installed_packages = []
+    failed_packages = []
+    all_installed = True
+
+    print("\nInstalling packages:")
+    for package in tqdm(required_packages, desc="Installing", unit="pkg"):
+        try:
+            __import__(package)
+            installed_packages.append(f"{package} (already installed)")
+            log_message(f"Package {package} is already installed.")
+        except ImportError:
+            try:
+                log_message(f"Installing package {package}...")
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", package],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                installed_packages.append(f"{package} (installed)")
+                log_message(f"Package {package} installed successfully.")
+            except subprocess.CalledProcessError as e:
+                failed_packages.append(package)
+                installed_packages.append(f"{package} (failed to install)")
+                log_message(f"Failed to install {package}. Error: {str(e)}")
+                all_installed = False
+
+    if failed_packages:
+        with open(FAILED_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(failed_packages))
+        log_message(f"Failed packages saved to {FAILED_FILE}")
+
+    return installed_packages, failed_packages, all_installed
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+def update_requirements():
+    try:
+        notebook_name = find_first_notebook()
+        if not notebook_name:
+            log_message("ERROR: No .ipynb file found for updating requirements!", level="ERROR")
+            return
+
+        log_message(f"Updating {REQUIREMENTS_FILE} using notebook '{notebook_name}'...")
+
+        with open(notebook_name, 'r', encoding='utf-8') as f:
+            notebook = nbformat.read(f, as_version=4)
+
+        required_packages = set()
+        for cell in notebook.cells:
+            if cell.cell_type == 'code':
+                try:
+                    tree = ast.parse(cell.source)
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Import):
+                            for alias in node.names:
+                                required_packages.add(alias.name.split('.')[0])
+                        elif isinstance(node, ast.ImportFrom):
+                            if node.module:
+                                required_packages.add(node.module.split('.')[0])
+                except Exception as e:
+                    log_message(f"Skipping one cell due to parsing error: {str(e)}", level="WARNING")
+                    continue
+
+        required_packages = [pkg for pkg in required_packages if pkg not in builtin_modules and pkg != "collections"]
+        unique_packages = sorted(set(pkg.split('.')[0] for pkg in required_packages))
+
+        package_aliases = {
+            "sklearn": "scikit-learn",
+            "PIL": "pillow"
+        }
+
+        with open(REQUIREMENTS_FILE, 'w', encoding='utf-8') as f:
+            for package in tqdm(unique_packages, desc="Writing requirements", unit="pkg"):
+                pip_name = package_aliases.get(package, package)
+                try:
+                    installed_package = subprocess.check_output(
+                        [sys.executable, "-m", "pip", "show", pip_name],
+                        stderr=subprocess.DEVNULL
+                    ).decode("utf-8")
+                    version_line = next(line for line in installed_package.splitlines() if line.startswith("Version:"))
+                    version = version_line.split(":")[1].strip()
+                    f.write(f"{pip_name}=={version}\n")
+                except subprocess.CalledProcessError as e:
+                    log_message(f"Could not get version for {package} (alias: {pip_name}). Error: {str(e)}", level="WARNING")
+
+        log_message(f"{REQUIREMENTS_FILE} updated successfully.")
+
+    except Exception as e:
+        log_message(f"Error updating {REQUIREMENTS_FILE}: {str(e)}", level="ERROR")
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+log_message("Starting to install missing packages from the notebook imports.")
+installed_packages, failed_packages, all_installed = install_required_packages()
+
+log_message(f"Updating {REQUIREMENTS_FILE} to reflect the installed packages.")
+update_requirements()
+
+if all_installed:
+    final_summary = "All packages were successfully installed."
+    console.print(Text(final_summary, style="bold green"))
+else:
+    final_summary = f"Some packages failed to install: {', '.join(failed_packages)}"
+    console.print(Text(final_summary, style="bold red"))
+
+results_folder = 'results'
+if os.path.exists(results_folder):
+    shutil.rmtree(results_folder)
+
+log_message(f"Final Summary: {final_summary}")
+</code></pre></div></div></div></div>
+</div></div></div>
+
+      <div class="accordion-item bg-success">
+        <h2 class="accordion-header" id="heading-sec-1-78ae2bce">
+          <button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-1-78ae2bce">
+            CSV fájlok betöltése és vizsgálata
+          </button>
+        </h2>
+        <div id="collapse-sec-1-78ae2bce" class="accordion-collapse collapse">
+          <div class="accordion-body">
+
+<div class="accordion mt-3" id="accordion-code-sec-1-78ae2bce-code-8156468c">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-1-78ae2bce-code-8156468c">
+      <button class="accordion-button collapsed btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-1-78ae2bce-code-8156468c">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-1-78ae2bce-code-8156468c" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'># EXPORT_IGNORE
+
+
+notebooks = [f for f in os.listdir('.') if f.endswith('.ipynb')]
+if len(notebooks) != 1:
+    raise FileNotFoundError("Exactly one .ipynb file must exist in the directory.")
+notebook_path = notebooks[0]
+base_name = os.path.splitext(notebook_path)[0]
+
+LOGFILE = f"{base_name}.log"
+FAILED_FILE = f"{base_name}_failed.txt"
+TXT_FILE = f"{base_name}_csv_file_loading_and_column_analysis.txt"
+MD_FILE = f"{base_name}_data_summary.md"
+python_output_path = f"{base_name}.py"
+
+console = Console()
+data_frames = {}
+csv_folder = "csv_files"
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+csv_files = [f for f in os.listdir(csv_folder) if f.endswith('.csv')]
+if not csv_files:
+    log_message(f"ERROR: No CSV files found in '{csv_folder}' folder.", level="ERROR")
+
+tqdm.write("\nLoading CSV files:")
+for filename in tqdm(csv_files, desc="Loading CSV files", unit="file"):
+    file_path = os.path.join(csv_folder, filename)
+    key = filename.replace(".csv", "").upper()
+    try:
+        df = pd.read_csv(file_path)
+        data_frames[key] = df
+        log_message(f"{filename} successfully loaded into data_frames['{key}'].")
+    except Exception as e:
+        log_message(f"ERROR: Failed to load {filename}: {e}", level="ERROR")
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+if not data_frames:
+    log_message("ERROR: No data frames were successfully loaded. Aborting analysis.", level="ERROR")
+else:
+    with open(TXT_FILE, "w", encoding="utf-8") as txt_out, open(MD_FILE, "w", encoding="utf-8") as md_out:
+        txt_out.write("# Dataset Creation and Analysis\n\n")
+        md_out.write("# CSV File Summary\n\n")
+
+        for key in tqdm(data_frames, desc="Analyzing files", unit="dataset"):
+            df = data_frames[key]
+            try:
+                if df.empty:
+                    log_message(f"WARNING: {key} is empty and was skipped.", level="WARNING")
+                    continue
+
+                row_count = df.shape[0]
+                column_count = df.shape[1]
+                column_types = df.dtypes.to_dict()
+                nulls = df.isnull().mean().round(3).to_dict()
+
+                structured_columns = []
+                enum_columns = []
+                for column in df.columns:
+                    if df[column].dtype == 'object':
+                        unique_values = df[column].dropna().unique()
+                        if len(unique_values) &lt; 10:
+                            enum_columns.append((column, unique_values[:5]))
+                        if len(df[column].dropna()) &gt; 0:
+                            sample = df[column].dropna().iloc[0]
+                            if isinstance(sample, str) and ',' in sample:
+                                structured_columns.append((column, 'Possible struct/enum'))
+
+                txt_out.write(f"### {key} loaded\n")
+                txt_out.write(f"Rows: {row_count}, Columns: {column_count}\n")
+                txt_out.write(f"Column types: {column_types}\n")
+                if structured_columns:
+                    txt_out.write(f"Structured/Enum-like columns: {structured_columns}\n")
+                if enum_columns:
+                    for column, values in enum_columns:
+                        formatted_values = ', '.join([str(v) for v in values])
+                        txt_out.write(f"Enum column {column}: {formatted_values}\n")
+                txt_out.write("\n")
+
+                md_out.write(f"## {key} file\n")
+                md_out.write(f"- Number of rows: {row_count}\n")
+                md_out.write(f"- Number of columns: {column_count}\n")
+                md_out.write(f"- Column types:\n")
+                for col, dtype in column_types.items():
+                    md_out.write(f"  - {col}: {dtype}\n")
+                md_out.write(f"- Missing value ratio:\n")
+                for col, percent in nulls.items():
+                    if percent &gt; 0:
+                        md_out.write(f"  - {col}: {percent * 100:.1f}%\n")
+                if enum_columns:
+                    md_out.write(f"- Enum-like columns:\n")
+                    for col, values in enum_columns:
+                        values_str = ', '.join(str(v) for v in values)
+                        md_out.write(f"  - {col}: {values_str}\n")
+                if structured_columns:
+                    md_out.write(f"- Possibly structured string fields:\n")
+                    for col, _ in structured_columns:
+                        md_out.write(f"  - {col}\n")
+                md_out.write("\n")
+
+                log_message(f"{key} successfully analyzed.")
+
+            except Exception as e:
+                log_message(f"ERROR while analyzing {key}: {e}", level="ERROR")
+
+    tqdm.write(f"\nAnalysis complete.")
+    tqdm.write(f"Results written to:\n- {TXT_FILE}\n- {MD_FILE}")
+    log_message(f"Analysis completed. Results saved to {TXT_FILE} and {MD_FILE}")
+</code></pre></div></div></div></div>
+</div></div></div>
+
+      <div class="accordion-item bg-warning">
+        <h2 class="accordion-header" id="heading-sec-2-e4ed4eee">
+          <button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-2-e4ed4eee">
+            Adatok korrigálása
+          </button>
+        </h2>
+        <div id="collapse-sec-2-e4ed4eee" class="accordion-collapse collapse">
+          <div class="accordion-body">
+
+<div class="accordion mt-3" id="accordion-code-sec-2-e4ed4eee-code-d641341d">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-2-e4ed4eee-code-d641341d">
+      <button class="accordion-button collapsed btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-2-e4ed4eee-code-d641341d">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-2-e4ed4eee-code-d641341d" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'># EXPORT_IGNORE
+
+notebooks = [f for f in os.listdir('.') if f.endswith('.ipynb')]
+if len(notebooks) != 1:
+    raise FileNotFoundError("Exactly one .ipynb file must exist in the directory.")
+notebook_path = notebooks[0]
+base_name = os.path.splitext(notebook_path)[0]
+
+LOGFILE = f"{base_name}.log"
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+def full_data_cleaning(data_frames, std_tolerance=0.3):
+    for name, df in tqdm(data_frames.items(), desc="Cleaning", unit="df"):
+        log_message(f"Starting full cleaning for DataFrame '{name}'...")
+
+        for column in df.columns:
+            if df[column].dtype == object:
+                df[column] = df[column].replace(["", "null", "NaN"], np.nan)
+
+            if df[column].isnull().any():
+                null_mask = df[column].isnull()
+                num_missing = null_mask.sum()
+
+                if pd.api.types.is_numeric_dtype(df[column]):
+                    valid_values = df[column].dropna()
+                    if not valid_values.empty:
+                        std_before = valid_values.std()
+                        sampled_values = np.random.choice(valid_values, size=num_missing, replace=True)
+                        df.loc[null_mask, column] = sampled_values
+                        std_after = df[column].std()
+                        log_message(f"[{name}] '{column}': std before={std_before:.3f}, after={std_after:.3f}")
+
+                        if std_before &gt; 0 and abs(std_before - std_after) / std_before &gt; std_tolerance:
+                            log_message(
+                                f"WARNING: Significant std change in '{column}' of '{name}', consider validation.",
+                                level="WARNING"
+                            )
+                    else:
+                        log_message(
+                            f"WARNING: Column '{column}' in '{name}' has only missing values and was left untouched.",
+                            level="WARNING"
+                        )
+
+                elif pd.api.types.is_object_dtype(df[column]):
+                    valid_values = df[column].dropna().unique()
+                    if len(valid_values) &gt; 0:
+                        sampled_values = np.random.choice(valid_values, size=num_missing, replace=True)
+                        df.loc[null_mask, column] = sampled_values
+                        log_message(f"[{name}] '{column}': filled {num_missing} missing values with sampled categories.")
+                    else:
+                        log_message(
+                            f"WARNING: Column '{column}' in '{name}' has only missing values and was left untouched.",
+                            level="WARNING"
+                        )
+
+        log_message(f"Completed full cleaning for DataFrame '{name}'.")
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+try:
+    full_data_cleaning(data_frames)
+    log_message("All data frames successfully cleaned.")
+except Exception as e:
+    log_message(f"ERROR during data cleaning: {str(e)}", level="ERROR")
+</code></pre></div></div></div></div>
+</div></div></div>
+
+      <div class="accordion-item bg-danger">
+        <h2 class="accordion-header" id="heading-sec-3-742f1d08">
+          <button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-3-742f1d08">
+            Tanulói viselkedés és mintázatok elemzése
+          </button>
+        </h2>
+        <div id="collapse-sec-3-742f1d08" class="accordion-collapse collapse">
+          <div class="accordion-body">
+<h3 class='mt-3'>Tanulási idő és visszatérés minták</h3>
+<h5 class='mt-2'>Mikor jellemző a legnagyobb aktivitás a beadáshoz képest?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-0-0-6e9e6283">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-0-0-6e9e6283">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-0-0-6e9e6283">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-0-0-6e9e6283" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "WhenIsPeakActivityRelativeToSubmission"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/StudyTimeAndReturnPatterns/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+tqdm.write("Step 1: Copying source data...")
+activity_df = data_frames['STUDENTVLE'].copy()
+activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+
+tqdm.write("Step 2: Preparing full assessment data with module info...")
+assessment_full = pd.merge(
+    data_frames['STUDENTASSESSMENT'],
+    data_frames['ASSESSMENTS'][['id_assessment', 'code_module', 'code_presentation']],
+    on='id_assessment',
+    how='left'
+)
+
+tqdm.write("Step 3: Computing typical submission dates by module and presentation...")
+submission_medians = (
+    assessment_full
+    .groupby(['code_module', 'code_presentation'])['date_submitted']
+    .median()
+    .reset_index()
+    .rename(columns={'date_submitted': 'typical_date_submitted'})
+)
+
+tqdm.write("Step 4: Merging typical submission dates into activity data...")
+activity_df = pd.merge(activity_df, submission_medians, on=['code_module', 'code_presentation'], how='left')
+
+tqdm.write("Step 5: Merging individual submission data...")
+assessment_df = data_frames['STUDENTASSESSMENT'][['id_student', 'date_submitted']].copy()
+activity_df = pd.merge(activity_df, assessment_df, on='id_student', how='left')
+
+tqdm.write("Step 6: Filling missing submissions with module medians...")
+activity_df['date_submitted'] = activity_df['date_submitted'].fillna(activity_df['typical_date_submitted'])
+
+tqdm.write("Step 7: Calculating days before submission...")
+activity_df['submitted_date'] = pd.to_timedelta(activity_df['date_submitted'], unit='D') + pd.Timestamp('2013-01-01')
+activity_df['days_before_submission'] = (activity_df['submitted_date'] - activity_df['date']).dt.days
+
+tqdm.write("Step 8: Classifying time to deadline into fixed ranges...")
+
+def categorize_by_deadline_days(days):
+    if days &lt;= 1:
+        return 'Last Minute'
+    elif days &lt;= 5:
+        return 'Near Deadline'
+    elif days &lt;= 15:
+        return 'Moderate Preparation'
+    else:
+        return 'Early Preparation'
+
+activity_df['time_to_deadline_category'] = activity_df['days_before_submission'].apply(categorize_by_deadline_days)
+
+steps = [
+    "Generating bar chart...",
+    "Generating pie chart...",
+    "Generating boxplot...",
+    "Generating scatter plot...",
+    "Generating daily activity trend...",
+    "Generating weekly activity trend...",
+    "Generating combined image..."
+]
+
+with tqdm(total=len(steps), desc="Visualizing results", ncols=90) as pbar:
+    chart_info = [
+        ("Bar chart - Activity by time to deadline", "Deadline Activity", "bar", 'bar', 'Activity Count'),
+        ("Pie chart - Proportions by time to deadline", "Deadline Activity", "pie", 'pie', ''),
+        ("Boxplot - Student activity by time to deadline", "Student Deadline Activity", "box", 'box', 'Activity Count'),
+        ("Scatter plot - Activity by student", "Student Deadline Activity", "scatter", 'scatter', 'Activity Count'),
+        ("Line chart - Daily trend", "Daily Activity Trend", "line", 'line', 'Activity Count'),
+        ("Line chart - Weekly trend", "Weekly Activity Trend", "line", 'line', 'Activity Count')
+    ]
+
+    for idx, (desc, prefix, plot_type, suffix, y_label) in enumerate(chart_info, start=9):
+        tqdm.write(f"Step {idx}: {desc}")
+
+        fig, ax = plt.subplots(figsize=(12, 6 if plot_type != 'pie' else 8))
+        filename = f"{to_camel_case(prefix + ' ' + suffix)}.png"
+        save_path = analysis_folder / filename
+
+        if suffix == "bar":
+            deadline_activity = activity_df.groupby('time_to_deadline_category').size()
+            deadline_activity.plot(kind='bar', color=['red', 'orange', 'gold', 'green'], ax=ax)
+            ax.set_xlabel('Time Relative to Deadline')
+            ax.set_ylabel(y_label)
+
+        elif suffix == "pie":
+            activity_percentage = deadline_activity / deadline_activity.sum() * 100
+            activity_percentage.plot(kind='pie', autopct='%1.1f%%', colors=['red', 'orange', 'gold', 'green'],
+                                     startangle=90, wedgeprops={'edgecolor': 'black'}, ax=ax)
+            ax.set_ylabel('')
+
+        elif suffix == "box":
+            student_activity = activity_df.groupby(['id_student', 'time_to_deadline_category']).size().unstack(fill_value=0)
+            student_activity.plot(kind='box', vert=False, patch_artist=True, ax=ax)
+            ax.set_xlabel(y_label)
+            ax.set_ylabel('Time to Deadline')
+
+        elif suffix == "scatter":
+            student_activity_plot = student_activity.reset_index()
+            for category in student_activity.columns:
+                ax.scatter(student_activity_plot['id_student'], student_activity_plot[category], alpha=0.3, label=category)
+            ax.set_xlabel('Student ID')
+            ax.set_ylabel(y_label)
+            ax.legend(loc='upper right')
+
+        elif prefix.startswith("Daily"):
+            daily_activity = activity_df.groupby(activity_df['date'].dt.date).size()
+            daily_activity.plot(kind='line', color='blue', ax=ax)
+            ax.set_xlabel('Date')
+            ax.set_ylabel(y_label)
+            ax.tick_params(axis='x', rotation=45)
+
+        elif prefix.startswith("Weekly"):
+            weekly_activity = activity_df.groupby(activity_df['date'].dt.weekday).size()
+            weekly_activity.plot(kind='line', color='green', ax=ax)
+            ax.set_xlabel('Day of Week (0=Mon, 6=Sun)')
+            ax.set_ylabel(y_label)
+            ax.set_xticks(range(7))
+            ax.set_xticklabels(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+
+        ax.set_title(desc.split(" - ")[1])
+        plt.tight_layout()
+        plt.savefig(save_path)
+        plt.close()
+        pbar.update(1)
+
+    tqdm.write("Step 15: Combined image - Summary visualization")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+
+    fig, axs = plt.subplots(2, 3, figsize=(18, 12))
+    axs = axs.flatten()
+
+    for i, img_path in enumerate(image_paths[:6]):
+        img = mpimg.imread(img_path)
+        axs[i].imshow(img)
+        axs[i].axis('off')
+
+    for j in range(i + 1, len(axs)):
+        axs[j].axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Vannak-e tipikus visszatérési ciklusok?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-0-1-2c279afa">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-0-1-2c279afa">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-0-1-2c279afa">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-0-1-2c279afa" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "AreThereTypicalReturnCycles"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/StudyTimeAndReturnPatterns/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing activity data...",
+    "Calculating return intervals...",
+    "Saving histogram of return intervals...",
+    "Saving density plot of return intervals...",
+    "Saving distinct return cycle bar chart...",
+    "Saving boxplot of return intervals...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing return cycles", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing activity data...")
+    activity_df = data_frames['STUDENTVLE'].copy()
+    activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+    activity_df = activity_df.sort_values(by=['id_student', 'date'])
+    pbar.update(1)
+
+    tqdm.write("Step 2: Calculating return intervals...")
+    activity_df['time_diff_seconds'] = activity_df.groupby('id_student')['date'].diff().dt.total_seconds()
+    activity_df['time_diff_days'] = activity_df['time_diff_seconds'] / (60 * 60 * 24)
+    return_days = activity_df['time_diff_days'].dropna()
+    pbar.update(1)
+
+    tqdm.write("Step 3: Saving histogram of return intervals...")
+    plt.figure(figsize=(12, 6))
+    plt.hist(return_days, bins=50, color='skyblue', edgecolor='black')
+    plt.title('Return Interval Distribution (in Days)')
+    plt.xlabel('Return Interval (Days)')
+    plt.ylabel('Event Count')
+    plt.grid(True)
+    plt.tight_layout()
+    filename = to_camel_case("Return Time Distribution") + ".png"
+    plt.savefig(analysis_folder / filename)
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Saving density plot of return intervals...")
+    plt.figure(figsize=(12, 6))
+    x_vals = return_days[(return_days &gt;= 0)].values
+    kde = gaussian_kde(x_vals, bw_method=0.5)
+    x_grid = np.linspace(0, np.percentile(x_vals, 99), 1000)
+    plt.plot(x_grid, kde(x_grid), color='orange')
+    plt.title('Return Interval Density (in Days)')
+    plt.xlabel('Return Interval (Days)')
+    plt.ylabel('Density')
+    plt.grid(True)
+    plt.tight_layout()
+    filename = to_camel_case("Return Time Density") + ".png"
+    plt.savefig(analysis_folder / filename)
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Saving distinct return cycle bar chart...")
+    interval_counts = {
+        '1 day': (return_days &lt;= 1).sum(),
+        '2 days': ((return_days &gt; 1) &amp; (return_days &lt;= 2)).sum(),
+        '3 days': ((return_days &gt; 2) &amp; (return_days &lt;= 3)).sum()
+    }
+    plt.figure(figsize=(10, 6))
+    plt.bar(interval_counts.keys(), interval_counts.values(), color='green')
+    plt.title('Distinct Return Intervals (in Days)')
+    plt.xlabel('Return Interval')
+    plt.ylabel('Event Count')
+    plt.tight_layout()
+    filename = to_camel_case("Dominant Return Cycles") + ".png"
+    plt.savefig(analysis_folder / filename)
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Saving boxplot of return intervals...")
+    plt.figure(figsize=(10, 6))
+    plt.boxplot(return_days, vert=False)
+    plt.title('Boxplot of Return Intervals')
+    plt.xlabel('Return Interval (Days)')
+    plt.tight_layout()
+    filename = to_camel_case("Return Time Boxplot") + ".png"
+    plt.savefig(analysis_folder / filename)
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Saving combined summary image...")
+    image_paths = sorted(list(analysis_folder.glob("*.png")))
+
+    fig, axs = plt.subplots(2, 2, figsize=(20, 16))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        img = mpimg.imread(image_paths[i])
+        ax.imshow(img)
+        ax.axis('off')
+
+    for j in range(i + 1, len(axs)):
+        axs[j].axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>A hosszabb tanulási idő jobb eredményt jelent?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-0-2-6448c810">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-0-2-6448c810">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-0-2-6448c810">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-0-2-6448c810" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split('_'))
+
+summary_image_stem = "DoesLongerStudyTimeIndicateBetterPerformance"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/StudyTimeAndReturnPatterns/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing activity-based study time metrics...",
+    "Running regressions and saving visualizations...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing extended study time metrics", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing activity-based study time metrics...")
+    activity_df = data_frames['STUDENTVLE'].copy()
+    activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+
+    agg_df = (
+        activity_df.groupby('id_student')
+        .agg(
+            click_count=('sum_click', 'sum') if 'sum_click' in activity_df.columns else ('id_site', 'count'),
+            n_unique_days=('date', lambda x: x.dt.date.nunique()),
+            study_span_days=('date', lambda x: (x.max() - x.min()).days)
+        )
+        .reset_index()
+    )
+
+    assessment_df = data_frames['STUDENTASSESSMENT'].copy()
+    assessment_df['correct'] = (assessment_df['score'] &gt; 50).astype(int)
+    correct_df = assessment_df.groupby('id_student')['correct'].max().reset_index()
+
+    merged_df = pd.merge(agg_df, correct_df, on='id_student', how='inner')
+    pbar.update(1)
+
+    tqdm.write("Step 2: Running regressions and saving visualizations...")
+    raw_features = ['click_count', 'n_unique_days', 'study_span_days']
+    image_paths = []
+
+    for raw_feature in raw_features:
+        feature = to_camel_case(raw_feature)
+        X = merged_df[[raw_feature]]
+        y = merged_df['correct']
+        imputer = SimpleImputer(strategy='mean')
+        X_imputed = imputer.fit_transform(X)
+        y_imputed = imputer.fit_transform(y.values.reshape(-1, 1)).flatten()
+        X_train, X_test, y_train, y_test = train_test_split(X_imputed, y_imputed, test_size=0.2, random_state=42)
+
+        linear_model = LinearRegression()
+        linear_model.fit(X_train, y_train)
+        y_pred_linear = linear_model.predict(X_test)
+
+        plt.figure(figsize=(10, 5))
+        plt.scatter(X_test, y_test, color='blue', alpha=0.4, label='Actual')
+        plt.plot(X_test, y_pred_linear, color='red', label='Regression Line')
+        plt.title(f'Linear Regression: {feature} vs. Correctness')
+        plt.xlabel(feature)
+        plt.ylabel('Correctness')
+        plt.legend(loc='upper right')
+        plt.tight_layout()
+        linear_path = analysis_folder / f"Linear{feature}.png"
+        plt.savefig(linear_path)
+        image_paths.append(linear_path)
+        plt.close()
+
+        logistic_model = LogisticRegression()
+        logistic_model.fit(X_train, y_train)
+        y_pred_logistic = logistic_model.predict(X_test)
+
+        plt.figure(figsize=(10, 5))
+        plt.scatter(X_test, y_test, color='green', alpha=0.4, label='Actual')
+        plt.scatter(X_test, y_pred_logistic, color='red', alpha=0.4, label='Predicted')
+        plt.title(f'Logistic Regression: {feature} vs. Correctness')
+        plt.xlabel(feature)
+        plt.ylabel('Correctness')
+        plt.legend(loc='upper right')
+        plt.tight_layout()
+        logistic_path = analysis_folder / f"Logistic{feature}.png"
+        plt.savefig(logistic_path)
+        image_paths.append(logistic_path)
+        plt.close()
+
+    pbar.update(1)
+
+    tqdm.write("Step 3: Saving combined summary image...")
+    fig, axs = plt.subplots(3, 2, figsize=(20, 18))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")</code></pre></div></div></div></div>
+<h3 class='mt-3'>Tanulási típusok azonosítása</h3>
+<h5 class='mt-2'>Csoportosítással lehet-e tanulócsoportokat azonosítani?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-1-0-13f3ab18">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-1-0-13f3ab18">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-1-0-13f3ab18">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-1-0-13f3ab18" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "CanClusteringCreateGroupsOfStudents"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/IdentifyingLearningTypes/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing input features...",
+    "Scaling and imputing data...",
+    "Running KMeans (elbow method)...",
+    "Calculating silhouette scores...",
+    "Clustering with KMeans and DBSCAN...",
+    "Saving cluster visualizations...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Clustering student groups", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing input features...")
+    vle_df = data_frames['STUDENTVLE'].copy()
+    vle_df['date'] = pd.to_timedelta(vle_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+
+    activity_columns = [
+        col for col in vle_df.select_dtypes(include='float64').columns
+        if col not in ['score', 'weight', 'date', 'date_submitted', 'date_registration', 'date_unregistration']
+    ]
+    vle_df['total_clicks'] = vle_df[activity_columns].sum(axis=1)
+
+    daily_clicks = vle_df.groupby(['id_student', vle_df['date'].dt.date])['total_clicks'].sum().groupby('id_student').mean()
+    vle_df_sorted = vle_df.sort_values(by=['id_student', 'date'])
+    vle_df_sorted['elapsed'] = vle_df_sorted.groupby('id_student')['date'].diff().dt.total_seconds() / 60
+    avg_session_length = vle_df_sorted.groupby('id_student')['elapsed'].mean()
+
+    registration_df = data_frames['STUDENTREGISTRATION'].copy()
+    return_counts = registration_df.groupby(['id_student', 'code_presentation']).size().reset_index(name='counts')
+    return_frequency = return_counts[return_counts['counts'] &gt; 1].groupby('id_student').size()
+
+    assessment_df = data_frames['STUDENTASSESSMENT'].copy()
+    assessment_df['correct'] = (assessment_df['score'] &gt; 50).astype(int)
+    error_rate = assessment_df.groupby('id_student')['correct'].apply(lambda x: 1 - x.mean())
+
+    features = pd.concat([daily_clicks, avg_session_length, return_frequency, error_rate], axis=1)
+    features.columns = ['AvgDailyClicks', 'AvgSessionLength', 'ReturnFrequency', 'ErrorRate']
+    pbar.update(1)
+
+    tqdm.write("Step 2: Scaling and imputing data...")
+    imputer = SimpleImputer(strategy='mean')
+    features_imputed = pd.DataFrame(imputer.fit_transform(features), columns=features.columns, index=features.index)
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features_imputed)
+    pbar.update(1)
+
+    tqdm.write("Step 3: Running KMeans (elbow method)...")
+    wcss = []
+    cluster_range = range(2, 10)
+    for k in cluster_range:
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        kmeans.fit(features_scaled)
+        wcss.append(kmeans.inertia_)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(cluster_range, wcss, marker='o')
+    plt.title('KMeans Elbow Method')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('WCSS')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "KMeansElbow.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Calculating silhouette scores...")
+    silhouette_scores = []
+    for k in cluster_range:
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        labels = kmeans.fit_predict(features_scaled)
+        silhouette_scores.append(silhouette_score(features_scaled, labels))
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(cluster_range, silhouette_scores, marker='o')
+    plt.title('Silhouette Scores')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('Score')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "KMeansSilhouette.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Clustering with KMeans and DBSCAN...")
+    kmeans_final = KMeans(n_clusters=3, random_state=42)
+    kmeans_labels = kmeans_final.fit_predict(features_scaled)
+    features_imputed['KMeansCluster'] = kmeans_labels
+
+    dbscan = DBSCAN(eps=1.5, min_samples=5)
+    dbscan_labels = dbscan.fit_predict(features_scaled)
+    features_imputed['DBSCANCluster'] = dbscan_labels
+    pbar.update(1)
+
+    tqdm.write("Step 6: Saving cluster visualizations...")
+    sampled_data = features_imputed.sample(frac=0.1, random_state=42)
+    sampled_scaled = scaler.transform(sampled_data.drop(columns=['KMeansCluster', 'DBSCANCluster'], errors='ignore'))
+    sampled_data['KMeansCluster'] = features_imputed.loc[sampled_data.index, 'KMeansCluster']
+    sampled_data['DBSCANCluster'] = features_imputed.loc[sampled_data.index, 'DBSCANCluster']
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(sampled_scaled[:, 0], sampled_scaled[:, 1],
+                c=sampled_data['KMeansCluster'], cmap='viridis', alpha=0.5)
+    plt.title('KMeans Clustering')
+    plt.xlabel('Avg Daily Clicks')
+    plt.ylabel('Avg Session Length (min)')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "KMeansClusters.png")
+    plt.close()
+
+    dbscan_filtered = sampled_data[sampled_data['DBSCANCluster'] != -1]
+    dbscan_scaled = scaler.transform(dbscan_filtered.drop(columns=['KMeansCluster', 'DBSCANCluster'], errors='ignore'))
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(dbscan_scaled[:, 0], dbscan_scaled[:, 1],
+                c=dbscan_filtered['DBSCANCluster'], cmap='tab10', alpha=0.5)
+    plt.title('DBSCAN Clustering (noise excluded)')
+    plt.xlabel('Avg Daily Clicks')
+    plt.ylabel('Avg Session Length (min)')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "DBSCANClusters.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+
+    fig, axs = plt.subplots(2, 2, figsize=(16, 12))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Hogyan változik az aktivitás a tanulási típus szerint?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-1-1-a8af89a7">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-1-1-a8af89a7">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-1-1-a8af89a7">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-1-1-a8af89a7" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split('_'))
+
+summary_image_stem = "HowDoesActivityDifferByLearningStyle"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/IdentifyingLearningTypes/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+# --- KMeans cluster assignment előkészítése ---
+activity_df = data_frames['STUDENTVLE'].copy()
+activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+
+features_imputed = (
+    activity_df
+    .groupby('id_student')
+    .agg(total_clicks=('sum_click', 'sum'))
+)
+
+scaler = StandardScaler()
+features_scaled = scaler.fit_transform(features_imputed)
+
+kmeans = KMeans(n_clusters=3, random_state=42)
+features_imputed['kmeans_cluster'] = kmeans.fit_predict(features_scaled)
+
+# --- Lépések ---
+steps = [
+    "Filtering data for clustered students...",
+    "Extracting temporal activity features...",
+    "Generating weekday activity chart...",
+    "Generating daily timeline chart...",
+    "Generating average daily activity chart...",
+    "Generating activity std dev chart...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing activity by learning type", ncols=90) as pbar:
+    tqdm.write("Step 1: Filtering data for clustered students...")
+    activity_df = activity_df[activity_df['id_student'].isin(features_imputed.index)]
+    activity_df['KMeansCluster'] = activity_df['id_student'].map(features_imputed['kmeans_cluster'])
+    pbar.update(1)
+
+    tqdm.write("Step 2: Extracting temporal activity features...")
+    activity_df['DayOfWeek'] = activity_df['date'].dt.dayofweek
+    activity_df['Day'] = activity_df['date'].dt.date
+    if 'total_clicks' not in activity_df.columns:
+        activity_df['total_clicks'] = 1
+    pbar.update(1)
+
+    tqdm.write("Step 3: Generating weekday activity chart...")
+    plt.figure(figsize=(10, 6))
+    sns.countplot(data=activity_df, x='DayOfWeek', hue='KMeansCluster')
+    plt.title('Activity by Weekday and Cluster')
+    plt.xlabel('Day of Week (0 = Monday)')
+    plt.ylabel('Event Count')
+    plt.legend(title='Cluster')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "WeekdayByCluster.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Generating daily timeline chart...")
+    daily_activity = activity_df.groupby(['KMeansCluster', 'Day'])['total_clicks'].sum().reset_index()
+    plt.figure(figsize=(14, 6))
+    sns.lineplot(data=daily_activity, x='Day', y='total_clicks', hue='KMeansCluster')
+    plt.title('Daily Total Clicks by Cluster')
+    plt.xlabel('Date')
+    plt.ylabel('Total Clicks')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "DailyTimelineByCluster.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Generating average daily activity per student by cluster...")
+    daily_avg = (
+        activity_df.groupby(['KMeansCluster', 'id_student'])['total_clicks'].sum()
+        / activity_df.groupby(['KMeansCluster', 'id_student'])['Day'].nunique()
+    ).reset_index(name='AvgClicksPerDay')
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(data=daily_avg, x='KMeansCluster', y='AvgClicksPerDay')
+    plt.title('Average Daily Activity per Student by Cluster')
+    plt.xlabel('Cluster')
+    plt.ylabel('Avg Clicks per Day')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "AvgDailyActivityByCluster.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Generating activity std dev chart...")
+    daily_clicks = activity_df.groupby(['id_student', 'date'])['sum_click'].sum().reset_index()
+    std_per_student = daily_clicks.groupby('id_student')['sum_click'].std().reset_index(name='StdClicksPerDay')
+    std_per_student['KMeansCluster'] = std_per_student['id_student'].map(features_imputed['kmeans_cluster'])
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(data=std_per_student, x='KMeansCluster', y='StdClicksPerDay')
+    plt.title('Standard Deviation of Daily Activity per Student by Cluster')
+    plt.xlabel('Cluster')
+    plt.ylabel('Std. Clicks per Day')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "PartOfDayByCluster.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(2, 2, figsize=(20, 16))
+    axs = axs.flatten()
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = plt.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{summary_image_stem}.png")
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Van-e kapcsolat az aktivitás (click count, napok száma, időtáv) és a teljesítmény között?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-1-2-0fabb70f">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-1-2-0fabb70f">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-1-2-0fabb70f">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-1-2-0fabb70f" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "IsThereRelationBetweenActivityAndPerformance"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/IdentifyingLearningTypes/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Calculating activity features...",
+    "Merging performance data...",
+    "Running regressions and saving plots...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing activity vs. performance", ncols=90) as pbar:
+    tqdm.write("Step 1: Calculating activity features...")
+    activity_df = data_frames['STUDENTVLE'].copy()
+    activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+
+    activity_summary = (
+        activity_df.groupby('id_student')
+        .agg(ClickCount=('id_site', 'count'),
+             NUniqueDays=('date', lambda x: x.dt.date.nunique()),
+             StudySpanDays=('date', lambda x: (x.max() - x.min()).days))
+        .reset_index()
+    )
+    pbar.update(1)
+
+    tqdm.write("Step 2: Merging performance data...")
+    assessment_df = data_frames['STUDENTASSESSMENT'].copy()
+    assessment_df['correct'] = (assessment_df['score'] &gt; 50).astype(int)
+    performance_df = assessment_df.groupby('id_student')['correct'].max().reset_index()
+    merged_df = pd.merge(activity_summary, performance_df, on='id_student', how='inner')
+    pbar.update(1)
+
+    tqdm.write("Step 3: Running regressions and saving plots...")
+    features = ['ClickCount', 'NUniqueDays', 'StudySpanDays']
+    image_paths = []
+
+    for feature in features:
+        feature_cc = to_camel_case(feature)
+        X = merged_df[[feature]]
+        y = merged_df['correct']
+        imputer = SimpleImputer(strategy='mean')
+        X_imputed = imputer.fit_transform(X)
+        y_imputed = imputer.fit_transform(y.values.reshape(-1, 1)).flatten()
+        X_train, X_test, y_train, y_test = train_test_split(X_imputed, y_imputed, test_size=0.2, random_state=42)
+
+        linear_model = LinearRegression()
+        linear_model.fit(X_train, y_train)
+        y_pred_linear = linear_model.predict(X_test)
+
+        plt.figure(figsize=(10, 5))
+        plt.scatter(X_test, y_test, color='blue', alpha=0.4, label='Actual')
+        plt.plot(X_test, y_pred_linear, color='red', label='Regression')
+        plt.title(f'Linear Regression: {feature} vs. Correctness')
+        plt.xlabel(feature)
+        plt.ylabel('Probability of Correct Answer')
+        plt.legend(loc='upper right')
+        plt.tight_layout()
+        linear_path = analysis_folder / f"Linear{feature_cc}.png"
+        plt.savefig(linear_path)
+        image_paths.append(linear_path)
+        plt.close()
+
+        logistic_model = LogisticRegression()
+        logistic_model.fit(X_train, y_train)
+        y_pred_logistic = logistic_model.predict(X_test)
+
+        plt.figure(figsize=(10, 5))
+        plt.scatter(X_test, y_test, color='green', alpha=0.4, label='Actual')
+        plt.scatter(X_test, y_pred_logistic, color='red', alpha=0.4, label='Predicted')
+        plt.title(f'Logistic Regression: {feature} vs. Correctness')
+        plt.xlabel(feature)
+        plt.ylabel('Correctness (0 or 1)')
+        plt.legend(loc='upper right')
+        plt.tight_layout()
+        logistic_path = analysis_folder / f"Logistic{feature_cc}.png"
+        plt.savefig(logistic_path)
+        image_paths.append(logistic_path)
+        plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Saving combined summary image...")
+    fig, axs = plt.subplots(3, 2, figsize=(20, 18))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        img = mpimg.imread(image_paths[i])
+        ax.imshow(img)
+        ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h3 class='mt-3'>Tartalomhasználati minták</h3>
+<h5 class='mt-2'>Mely tananyagtípusokat használják a tanulók a leggyakrabban?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-2-0-d40d47f8">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-2-0-d40d47f8">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-2-0-d40d47f8">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-2-0-d40d47f8" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "WhichContentTypesAreUsedMostFrequentlyByStudents"
+analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/ContentUsagePatterns/{summary_image_stem}")
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Merging activity and content type data...",
+    "Generating total clicks bar chart...",
+    "Generating proportional pie chart with explode...",
+    "Generating weekly trend for top 5 types...",
+    "Generating usage boxplot by content type...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing content usage patterns", ncols=90) as pbar:
+    tqdm.write("Step 1: Merging activity and content type data...")
+    activity_df = data_frames['STUDENTVLE'].copy()
+    vle_df = data_frames['VLE'].copy()
+    activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+    merged_df = pd.merge(activity_df, vle_df[['id_site', 'activity_type']], on='id_site', how='left')
+    pbar.update(1)
+
+    tqdm.write("Step 2: Generating total clicks bar chart...")
+    activity_summary = merged_df.groupby('activity_type')['sum_click'].sum().sort_values(ascending=False)
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x=activity_summary.values, y=activity_summary.index)
+    plt.title('Content Types Usage by Total Clicks')
+    plt.xlabel('Total Clicks')
+    plt.ylabel('Content Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "ContentUsageByClickBarplot.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 3: Generating proportional pie chart with legend instead of inline labels...")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    explode = [0.1 if val &lt; activity_summary.max() * 0.03 else 0 for val in activity_summary]
+
+    wedges, texts, autotexts = ax.pie(
+        activity_summary,
+        labels=None,
+        autopct='%1.1f%%',
+        startangle=90,
+        explode=explode,
+        wedgeprops={'edgecolor': 'black'}
+    )
+
+    ax.legend(
+        wedges,
+        activity_summary.index,
+        title="Content Types",
+        loc="center left",
+        bbox_to_anchor=(1, 0.5)
+    )
+
+    ax.set_title('Proportional Use of Content Types')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "ContentUsageByClickPieChart.png")
+    plt.close()
+    pbar.update(1)
+
+
+    tqdm.write("Step 4: Generating weekly trend for top 5 types...")
+    top5_types = activity_summary.head(5).index.tolist()
+    merged_df['Week'] = merged_df['date'].dt.to_period('W').dt.start_time
+    weekly_trends = merged_df[merged_df['activity_type'].isin(top5_types)]
+    weekly_summary = weekly_trends.groupby(['Week', 'activity_type'])['sum_click'].sum().reset_index()
+
+    plt.figure(figsize=(14, 6))
+    sns.lineplot(data=weekly_summary, x='Week', y='sum_click', hue='activity_type')
+    plt.title('Weekly Click Trends for Top 5 Content Types')
+    plt.xlabel('Week')
+    plt.ylabel('Total Clicks')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "WeeklyTrendsTop5ContentTypes.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Generating usage boxplot by content type...")
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(data=merged_df, x='activity_type', y='sum_click', order=activity_summary.index.tolist())
+    plt.title('Click Distribution per Event by Content Type')
+    plt.xlabel('Content Type')
+    plt.ylabel('Clicks per Event')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / "BoxplotClicksPerContentType.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(2, 2, figsize=(20, 14))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Különbözik-e a sikeres és kevésbé sikeres tanulók tartalomhasználati mintázata?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-2-1-088d6381">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-2-1-088d6381">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-2-1-088d6381">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-2-1-088d6381" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "IsThereADifferenceInContentUsagePatternsBetweenSuccessfulAndUnsuccessfulStudents"
+analysis_folder = Path(f'results/StudentBehaviorAndPatternAnalysis/ContentUsagePatterns/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Merging VLE with activity types...",
+    "Merging with student results...",
+    "Aggregating clicks by activity type and result...",
+    "Generating barplots...",
+    "Generating relative difference barplot...",
+    "Generating heatmap...",
+    "Generating boxplot...",
+    "Generating usage share difference barplot...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing content usage vs. performance", ncols=90) as pbar:
+    tqdm.write("Step 1: Merging VLE with activity types...")
+    vle_df = data_frames['STUDENTVLE'].copy()
+    activity_df = data_frames['VLE'][['id_site', 'activity_type']].copy()
+    vle_df = pd.merge(vle_df, activity_df, on='id_site', how='left')
+    pbar.update(1)
+
+    tqdm.write("Step 2: Merging with student results...")
+    student_info_df = data_frames['STUDENTINFO'][['id_student', 'final_result']].copy()
+    vle_df = pd.merge(vle_df, student_info_df, on='id_student', how='left')
+    vle_df['result_group'] = vle_df['final_result'].map(
+        lambda x: 'Successful' if x in ['Pass', 'Distinction'] else 'Unsuccessful' if x in ['Fail', 'Withdrawn'] else 'Other'
+    )
+    vle_df = vle_df[vle_df['result_group'].isin(['Successful', 'Unsuccessful'])]
+    pbar.update(1)
+
+    tqdm.write("Step 3: Aggregating clicks by activity type and result...")
+    agg_df = vle_df.groupby(['activity_type', 'result_group'])['sum_click'].sum().unstack(fill_value=0)
+    pbar.update(1)
+
+    tqdm.write("Step 4: Generating barplots...")
+    for group in ['Successful', 'Unsuccessful']:
+        plt.figure(figsize=(12, 6))
+        sns.barplot(x=agg_df[group].values, y=agg_df.index)
+        plt.title(f'Content Usage – {group}')
+        plt.xlabel('Total Clicks')
+        plt.ylabel('Content Type')
+        plt.tight_layout()
+        plt.savefig(analysis_folder / f'ContentUsage{to_camel_case(group)}.png')
+        plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Generating relative difference barplot...")
+    rel_diff = ((agg_df['Successful'] - agg_df['Unsuccessful']) / (agg_df['Successful'] + agg_df['Unsuccessful'])) * 100
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x=rel_diff.values, y=rel_diff.index, palette='coolwarm')
+    plt.title('Relative Difference (%) in Clicks')
+    plt.xlabel('Relative Difference (%)')
+    plt.ylabel('Content Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / 'RelativeDifference.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Generating heatmap...")
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(agg_df, annot=True, fmt='.0f', cmap='YlGnBu')
+    plt.title('Content Usage Heatmap')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / 'ContentUsageHeatmap.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Generating boxplot...")
+    plt.figure(figsize=(14, 8))
+    sns.boxplot(data=vle_df, x='sum_click', y='activity_type', hue='result_group')
+    plt.title('Click Distribution by Group and Content Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / 'BoxplotByGroup.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 8: Generating usage share difference barplot...")
+    proportions = agg_df.div(agg_df.sum(axis=0), axis=1) * 100
+    proportions_diff = proportions['Successful'] - proportions['Unsuccessful']
+
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x=proportions_diff.values, y=proportions_diff.index, palette='vlag')
+    plt.title('Usage Share Difference (Percentage Points)')
+    plt.xlabel('Percentage Point Difference')
+    plt.ylabel('Content Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / 'UsageShareDifference.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 9: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(3, 2, figsize=(22, 18))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Milyen tartalomsorrend a leggyakoribb?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-3-742f1d08-q-2-2-caf36b30">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-3-742f1d08-q-2-2-caf36b30">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-742f1d08-q-2-2-caf36b30">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-3-742f1d08-q-2-2-caf36b30" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "WhatIsTheMostCommonContentSequence"
+analysis_folder = Path(f'results/StudentBehaviorAndPatternAnalysis/ContentUsagePatterns/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Calculating most common content sequences...",
+    "Generating barplot of top sequences...",
+    "Generating pie chart of top sequences...",
+    "Calculating content diversity per student...",
+    "Generating diversity histogram...",
+    "Generating diversity level barplot...",
+    "Generating content type appearance chart...",
+    "Generating average diversity over time...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing content sequence patterns", ncols=90) as pbar:
+    tqdm.write("Step 1: Calculating most common content sequences...")
+    activity_df = data_frames['STUDENTVLE'].copy()
+    vle_info = data_frames['VLE'][['id_site', 'activity_type']].copy()
+    activity_df = pd.merge(activity_df, vle_info, on='id_site', how='left')
+    activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
+
+    student_sequences = []
+    for student_id, group in activity_df.groupby('id_student'):
+        seq = group.groupby('activity_type')['sum_click'].sum().sort_values(ascending=False)
+        top_types = seq[seq &gt; 0].index.tolist()[:3]
+        if top_types:
+            student_sequences.append(tuple(top_types))
+    pbar.update(1)
+
+    tqdm.write("Step 2: Generating barplot of top sequences...")
+    sequence_counts = Counter(student_sequences)
+    top_sequences = sequence_counts.most_common(10)
+    labels = [' → '.join(seq) for seq, _ in top_sequences]
+    counts = [count for _, count in top_sequences]
+
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x=counts, y=labels)
+    plt.title('Most Common Content Sequences')
+    plt.xlabel('Number of Students')
+    plt.ylabel('Content Sequence')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("Most Common Content Sequences Barplot")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 3: Generating pie chart of top sequences...")
+    plt.figure(figsize=(8, 8))
+    explode = [0.05 if c &lt; max(counts) * 0.1 else 0 for c in counts]
+    plt.pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, explode=explode)
+    plt.title('Most Common Content Sequences')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("Most Common Content Sequences Pie Chart")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Calculating content diversity per student...")
+    full_diversity = activity_df.groupby('id_student')['activity_type'].nunique()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Generating diversity histogram...")
+    plt.figure(figsize=(12, 6))
+    sns.histplot(full_diversity, bins=range(1, full_diversity.max() + 2), discrete=True)
+    plt.title('Content Type Diversity Histogram')
+    plt.xlabel('Number of Distinct Content Types')
+    plt.ylabel('Number of Students')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("Content Type Diversity Histogram")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Generating diversity level barplot...")
+    def categorize(n): return 'Low (1–5)' if n &lt;= 5 else 'Medium (6–10)' if n &lt;= 10 else 'High (11+)'
+    level_counts = full_diversity.map(categorize).value_counts().reindex(['Low (1–5)', 'Medium (6–10)', 'High (11+)'])
+
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=level_counts.index, y=level_counts.values, palette='pastel')
+    plt.title('Content Type Diversity Level')
+    plt.xlabel('Diversity Level')
+    plt.ylabel('Number of Students')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("Content Type Diversity Level Barplot")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Generating content type appearance chart...")
+    appeared = activity_df.groupby('activity_type')['id_student'].nunique().sort_values(ascending=False)
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x=appeared.values, y=appeared.index)
+    plt.title('Content Type Appearance Among Students')
+    plt.xlabel('Number of Students')
+    plt.ylabel('Content Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("Content Type Appears In How Many Students")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 8: Generating average diversity over time...")
+    weekly = activity_df.groupby(['id_student', activity_df['date'].dt.to_period('W')])['activity_type'].nunique().reset_index()
+    weekly.columns = ['id_student', 'week', 'diversity']
+    avg_weekly = weekly.groupby('week')['diversity'].mean()
+
+    plt.figure(figsize=(14, 6))
+    avg_weekly.plot()
+    plt.title('Average Weekly Content Type Diversity')
+    plt.xlabel('Week')
+    plt.ylabel('Average Diversity')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("Average Weekly Content Type Diversity")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 9: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(3, 2, figsize=(22, 18))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+</div></div></div>
+
+      <div class="accordion-item bg-info">
+        <h2 class="accordion-header" id="heading-sec-4-f8e22a41">
+          <button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-4-f8e22a41">
+            Teljesítményelőrejelzés korai aktivitás alapján
+          </button>
+        </h2>
+        <div id="collapse-sec-4-f8e22a41" class="accordion-collapse collapse">
+          <div class="accordion-body">
+<h3 class='mt-3'>Korai aktivitási minták azonosítása</h3>
+<h5 class='mt-2'>Milyen mintázatok jellemzik a sikeres tanulókat az első napokban?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-4-f8e22a41-q-0-0-886c0bea">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-4-f8e22a41-q-0-0-886c0bea">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-f8e22a41-q-0-0-886c0bea">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-4-f8e22a41-q-0-0-886c0bea" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "WhatPatternsCharacterizeSuccessfulStudentsInTheFirstDays"
+analysis_folder = Path(f'results/PerformancePredictionBasedOnEarlyActivity/IdentifyingEarlyActivityPatterns/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing early activity data...",
+    "Generating boxplot of early clicks...",
+    "Generating histogram of days until first activity...",
+    "Generating enhanced barplot of early clicks with error bars...",
+    "Generating histogram of total early clicks...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing early success patterns", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing early activity data...")
+    df = data_frames['STUDENTVLE'].copy()
+    student_info = data_frames['STUDENTINFO'].copy()
+    registration = data_frames['STUDENTREGISTRATION'].copy()
+    df = pd.merge(df, student_info[['id_student', 'final_result']], on='id_student', how='left')
+    df = pd.merge(df, registration[['id_student', 'date_registration']], on='id_student', how='left')
+
+    df['date'] = pd.to_timedelta(df['date'], unit='D') + pd.Timestamp('2013-01-01')
+    df['date_registration'] = pd.to_numeric(df['date_registration'], errors='coerce')
+    df['time_since_registration'] = (df['date'].dt.day - df['date_registration']).fillna(0)
+    df['success'] = df['final_result'].isin(['Pass', 'Distinction'])
+    df['sum_click'] = df['sum_click'] if 'sum_click' in df.columns else 1
+    pbar.update(1)
+
+    tqdm.write("Step 2: Generating boxplot of early clicks...")
+    early_window = df[df['time_since_registration'].between(0, 2)]
+    early_activity = (
+        early_window
+        .groupby(['id_student', 'success'])['sum_click']
+        .sum()
+        .reset_index()
+    )
+
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(data=early_activity, x='success', y='sum_click')
+    plt.title('First 3 Days Clicks')
+    plt.xlabel('Successful Student')
+    plt.ylabel('Total Clicks')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('First 3 Days Clicks Boxplot')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 3: Generating histogram of days until first activity...")
+    first_activity = (
+        df[df['date'].notna()]
+        .sort_values(by='date')
+        .groupby('id_student')
+        .first()
+        .reset_index()
+    )
+    first_activity['days_until_first_activity'] = (
+        first_activity['date'].dt.day - first_activity['date_registration']
+    )
+    first_activity['success'] = first_activity['final_result'].isin(['Pass', 'Distinction'])
+
+    plt.figure(figsize=(10, 6))
+    sns.histplot(data=first_activity, x='days_until_first_activity', hue='success', bins=20, kde=True, multiple="stack")
+    plt.title('Days Until First Activity')
+    plt.xlabel('Days Since Registration')
+    plt.ylabel('Number of Students')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Days Until First Activity Histogram')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Generating enhanced barplot of early clicks with error bars...")
+    mean_std_early_clicks = (
+        early_activity
+        .groupby('success')['sum_click']
+        .agg(['mean', 'std', 'count'])
+        .reset_index()
+    )
+    mean_std_early_clicks = mean_std_early_clicks[mean_std_early_clicks['count'] &gt; 1]
+
+    x_labels = ['Unsuccessful', 'Successful']
+    means = mean_std_early_clicks['mean'].values
+    stds = mean_std_early_clicks['std'].values
+
+    plt.figure(figsize=(8, 6))
+    plt.bar(x_labels, means, yerr=stds, capsize=10, color=sns.color_palette("pastel"))
+    plt.title('Average Early Clicks')
+    plt.xlabel('Successful Student')
+    plt.ylabel('Average Click Count ± Std Dev')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Average Early Clicks Barplot')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Generating histogram of total early clicks...")
+    plt.figure(figsize=(10, 6))
+    sns.histplot(data=early_activity, x='sum_click', hue='success', bins=30, kde=False, multiple="stack")
+    plt.title('Early Click Distribution')
+    plt.xlabel('Total Clicks')
+    plt.ylabel('Number of Students')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Early Click Distribution Histogram')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(2, 2, figsize=(20, 16))
+    axs = axs.flatten()
+
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Felismerhetők-e tipikus aktivitási minták az első napok alapján?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-4-f8e22a41-q-0-1-2a149864">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-4-f8e22a41-q-0-1-2a149864">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-f8e22a41-q-0-1-2a149864">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-4-f8e22a41-q-0-1-2a149864" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "CanTypicalActivityPatternsBeIdentifiedBasedOnFirstDays"
+analysis_folder = Path(f'results/PerformancePredictionBasedOnEarlyActivity/IdentifyingEarlyActivityPatterns/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+df = data_frames['STUDENTVLE'].copy()
+student_info = data_frames['STUDENTINFO'].copy()
+registration = data_frames['STUDENTREGISTRATION'].copy()
+
+df = pd.merge(df, student_info[['id_student', 'final_result']], on='id_student', how='left')
+df = pd.merge(df, registration[['id_student', 'date_registration']], on='id_student', how='left')
+
+df['date'] = pd.to_timedelta(df['date'], unit='D') + pd.Timestamp('2013-01-01')
+df['date_registration'] = pd.to_numeric(df['date_registration'], errors='coerce')
+df['time_since_registration'] = (df['date'].dt.day - df['date_registration']).fillna(0)
+early_df = df[df['time_since_registration'].between(0, 2)]
+
+if 'sum_click' not in early_df.columns:
+    early_df = early_df.copy()
+    early_df['sum_click'] = 1
+
+features = early_df.groupby(['id_student', 'id_site'])['sum_click'].sum().unstack(fill_value=0)
+
+scaler = StandardScaler()
+scaled_data = scaler.fit_transform(features)
+kmeans = KMeans(n_clusters=3, random_state=42)
+features['cluster'] = kmeans.fit_predict(scaled_data)
+
+success_map = df.drop_duplicates('id_student')[['id_student', 'final_result']]
+features = features.merge(success_map, on='id_student', how='left')
+features['success'] = features['final_result'].isin(['Pass', 'Distinction'])
+
+pca = PCA(n_components=2)
+pca_result = pca.fit_transform(scaled_data)
+features['pca1'] = pca_result[:, 0]
+features['pca2'] = pca_result[:, 1]
+
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=features, x='pca1', y='pca2', hue='cluster', style='success', palette='tab10')
+plt.title('Early Activity Clusters (PCA)')
+plt.tight_layout()
+plt.savefig(analysis_folder / f'{to_camel_case("Early Activity Clusters PCA")}.png')
+plt.close()
+
+cluster_success = features.groupby('cluster')['success'].mean().reset_index()
+plt.figure(figsize=(8, 5))
+sns.barplot(data=cluster_success, x='cluster', y='success')
+plt.title('Cluster Success Rates')
+plt.xlabel('Cluster')
+plt.ylabel('Success Rate')
+plt.tight_layout()
+plt.savefig(analysis_folder / f'{to_camel_case("Cluster Success Rates")}.png')
+plt.close()
+
+numeric_columns = features.select_dtypes(include='number').columns.difference(['pca1', 'pca2', 'success'])
+cluster_profiles = features.groupby('cluster')[numeric_columns].mean()
+plt.figure(figsize=(12, 6))
+sns.heatmap(cluster_profiles, cmap='YlGnBu', annot=False)
+plt.title('Cluster Activity Profiles Heatmap')
+plt.xlabel('Resource ID')
+plt.ylabel('Cluster')
+plt.tight_layout()
+plt.savefig(analysis_folder / f'{to_camel_case("Cluster Activity Profiles Heatmap")}.png')
+plt.close()
+
+cluster_counts = features['cluster'].value_counts().sort_index()
+plt.figure(figsize=(8, 5))
+sns.barplot(x=cluster_counts.index, y=cluster_counts.values)
+plt.title('Cluster Sizes')
+plt.xlabel('Cluster')
+plt.ylabel('Student Count')
+plt.tight_layout()
+plt.savefig(analysis_folder / f'{to_camel_case("Cluster Sizes")}.png')
+plt.close()
+
+plt.figure(figsize=(10, 6))
+sns.violinplot(data=features, x='cluster', y='pca1', hue='success', split=True, inner='quartile', palette='Set2')
+plt.title('PCA1 Distribution By Cluster and Success')
+plt.xlabel('Cluster')
+plt.ylabel('PCA1')
+plt.legend(title='Success')
+plt.tight_layout()
+plt.savefig(analysis_folder / f'{to_camel_case("PCA1 Distribution By Cluster and Success")}.png')
+plt.close()
+
+plt.figure(figsize=(10, 6))
+sns.stripplot(data=features, x='success', y='pca2', hue='cluster', jitter=0.25, palette='tab10', dodge=True)
+plt.title('PCA2 By Success and Cluster')
+plt.xlabel('Successful Student')
+plt.ylabel('PCA2')
+plt.legend(title='Cluster', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.savefig(analysis_folder / f'{to_camel_case("PCA2 By Success and Cluster")}.png')
+plt.close()
+
+image_paths = sorted(analysis_folder.glob("*.png"))
+fig, axs = plt.subplots(3, 2, figsize=(22, 24))
+axs = axs.flatten()
+for i, ax in enumerate(axs):
+    if i &lt; len(image_paths):
+        img = mpimg.imread(image_paths[i])
+        ax.imshow(img)
+        ax.axis('off')
+    else:
+        ax.axis('off')
+
+plt.tight_layout()
+combined_path = analysis_folder / f"{summary_image_stem}.png"
+plt.savefig(combined_path)
+plt.close()
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Milyen eseménytípusok a leggyakoribbak a sikeres tanulóknál?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-4-f8e22a41-q-0-2-5cd6a2fa">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-4-f8e22a41-q-0-2-5cd6a2fa">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-f8e22a41-q-0-2-5cd6a2fa">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-4-f8e22a41-q-0-2-5cd6a2fa" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(text):
+    return ''.join(word.capitalize() for word in text.split())
+
+summary_image_stem = "WhatAreTheMostCommonEventTypesForSuccessfulStudents"
+analysis_folder = Path(f'results/PerformancePredictionBasedOnEarlyActivity/IdentifyingEarlyActivityPatterns/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Filtering successful students and joining activity types...",
+    "Aggregating total clicks per activity type...",
+    "Generating dot plot...",
+    "Generating pie chart...",
+    "Generating weekly trend for top 5 activity types...",
+    "Generating heatmap of activity usage by weekday...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing most common activity types (successful students)", ncols=90) as pbar:
+    tqdm.write("Step 1: Filtering successful students and joining activity types...")
+    df = data_frames['STUDENTVLE'].copy()
+    vle_df = data_frames['VLE'].copy()
+    info_df = data_frames['STUDENTINFO'].copy()
+
+    df = pd.merge(df, vle_df[['id_site', 'activity_type']], on='id_site', how='left')
+    df = pd.merge(df, info_df[['id_student', 'final_result']], on='id_student', how='left')
+    df = df[df['final_result'].isin(['Pass', 'Distinction'])].copy()
+    df['date'] = pd.to_timedelta(df['date'], unit='D') + pd.Timestamp('2013-01-01')
+    df['weekday'] = df['date'].dt.dayofweek
+    df['week'] = df['date'].dt.to_period('W').dt.start_time
+    pbar.update(1)
+
+    tqdm.write("Step 2: Aggregating total clicks per activity type...")
+    activity_summary = df.groupby('activity_type')['sum_click'].sum().sort_values(ascending=False)
+    top5_activities = activity_summary.head(5).index.tolist()
+    pbar.update(1)
+
+    tqdm.write("Step 3: Generating dot plot...")
+    plt.figure(figsize=(12, 6))
+    sns.stripplot(x=activity_summary.values, y=activity_summary.index, size=10, orient='h')
+    plt.title('Most Used Activity Types')
+    plt.xlabel('Total Clicks')
+    plt.ylabel('Activity Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Most Used Activity Types Dot Plot')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Generating pie chart...")
+    plt.figure(figsize=(8, 8))
+
+    explode = [0.1 if x == max(activity_summary.values) else 0 for x in activity_summary.values]
+
+    wedges, _ = plt.pie(
+        activity_summary.values,
+        explode=explode,
+        startangle=90,
+        wedgeprops={'edgecolor': 'black'}
+    )
+
+    labels = activity_summary.index.tolist()
+    plt.legend(wedges, labels, title='Activity Types', loc='center left', bbox_to_anchor=(1, 0.5))
+
+    plt.title('Activity Types Pie Chart')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Activity Types Pie Chart')}.png")
+    plt.close()
+    pbar.update(1)
+
+
+    tqdm.write("Step 5: Generating weekly trend for top 5 activity types...")
+    weekly_trend = df[df['activity_type'].isin(top5_activities)]
+    weekly_summary = weekly_trend.groupby(['week', 'activity_type'])['sum_click'].sum().reset_index()
+    plt.figure(figsize=(14, 6))
+    sns.lineplot(data=weekly_summary, x='week', y='sum_click', hue='activity_type')
+    plt.title('Top 5 Activity Types Weekly Trend')
+    plt.xlabel('Week')
+    plt.ylabel('Total Clicks')
+    plt.legend(title='Activity Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Top 5 Activity Types Weekly Trend')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Generating heatmap of activity usage by weekday...")
+    heatmap_data = df[df['activity_type'].isin(top5_activities)]
+    heatmap_summary = heatmap_data.groupby(['activity_type', 'weekday'])['sum_click'].sum().unstack().fillna(0)
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(heatmap_summary, annot=True, cmap='YlGnBu', fmt='.0f')
+    plt.title('Top Activity Types Heatmap By Weekday')
+    plt.xlabel('Day of Week (0 = Monday)')
+    plt.ylabel('Activity Type')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('Top Activity Types Heatmap By Weekday')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(2, 2, figsize=(20, 16))
+    axs = axs.flatten()
+    for i, ax in enumerate(axs):
+        if i &lt; len(image_paths):
+            img = mpimg.imread(image_paths[i])
+            ax.imshow(img)
+            ax.axis('off')
+        else:
+            ax.axis('off')
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h3 class='mt-3'>Prediktív modellek teljesítményének összehasonlítása</h3>
+<h5 class='mt-2'>Melyik gépi tanulási modell nyújtja a legjobb előrejelzést?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-4-f8e22a41-q-1-0-eff42194">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-4-f8e22a41-q-1-0-eff42194">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-f8e22a41-q-1-0-eff42194">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-4-f8e22a41-q-1-0-eff42194" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(s):
+    return ''.join(word.capitalize() for word in s.split())
+
+summary_image_stem = "WhichMachineLearningModelProvidesTheBestPrediction"
+analysis_folder = Path(f'results/PerformancePredictionBasedOnEarlyActivity/ComparisonOfPredictiveModelPerformance/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing data...",
+    "Training models...",
+    "Evaluating performance metrics...",
+    "Saving confusion matrices...",
+    "Saving precision-recall curves...",
+    "Saving ROC curve...",
+    "Saving feature importance charts...",
+    "Saving model performance comparison chart...",
+    "Saving predictive confidence distribution...",
+    "Creating combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Evaluating ML models", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing data...")
+    student_info = data_frames['STUDENTINFO'].copy()
+    registration = data_frames['STUDENTREGISTRATION'].copy()
+    vle = data_frames['STUDENTVLE'].copy()
+
+    activity_agg = (
+        vle
+        .groupby('id_student')
+        .agg(
+            click_count=('sum_click', 'sum'),
+            n_unique_days=('date', lambda x: x.nunique()),
+            study_span_days=('date', lambda x: x.max() - x.min())
+        )
+        .reset_index()
+    )
+
+    df = (
+        student_info
+        .merge(registration[['id_student', 'date_registration']], on='id_student', how='left')
+        .merge(activity_agg, on='id_student', how='left')
+    )
+
+    df['success'] = df['final_result'].isin(['Pass', 'Distinction']).astype(int)
+    df = df.fillna(0)
+
+    feature_columns = ['click_count', 'n_unique_days', 'study_span_days']
+    X = df[feature_columns]
+    y = df['success']
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42)
+    pbar.update(1)
+
+    tqdm.write("Step 2: Training models...")
+    models = {
+        "Logistic Regression": LogisticRegression(max_iter=500),
+        "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+        "XGBoost": XGBClassifier(eval_metric='logloss')
+    }
+    pbar.update(1)
+
+    tqdm.write("Step 3: Evaluating performance metrics...")
+    results = []
+    all_y_scores = {}
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        y_score = model.predict_proba(X_test)[:, 1]
+        acc = accuracy_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
+        results.append((name, acc, f1))
+        all_y_scores[name] = (y_test, y_score)
+    pbar.update(1)
+
+    for name in models:
+        cm = confusion_matrix(y_test, models[name].predict(X_test))
+        plt.figure(figsize=(5, 4))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+        plt.title(f'Confusion Matrix – {name}')
+        plt.xlabel('Predicted')
+        plt.ylabel('Actual')
+        plt.tight_layout()
+        fname = analysis_folder / f'ConfusionMatrix{to_camel_case(name)}.png'
+        plt.savefig(fname)
+        plt.close()
+    pbar.update(1)
+
+    for name, (yt, ys) in all_y_scores.items():
+        precision, recall, _ = precision_recall_curve(yt, ys)
+        plt.figure(figsize=(8, 5))
+        plt.plot(recall, precision, label=name)
+        plt.title(f'Precision-Recall Curve – {name}')
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.tight_layout()
+        fname = analysis_folder / f'PrecisionRecall{to_camel_case(name)}.png'
+        plt.savefig(fname)
+        plt.close()
+    pbar.update(1)
+
+    plt.figure(figsize=(10, 6))
+    for name, (yt, ys) in all_y_scores.items():
+        fpr, tpr, _ = roc_curve(yt, ys)
+        roc_auc = auc(fpr, tpr)
+        plt.plot(fpr, tpr, label=f'{name} (AUC = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.title('ROC Curve Comparison')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc='lower right')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / 'RocComparison.png')
+    plt.close()
+    pbar.update(1)
+
+    for name, model in models.items():
+        if hasattr(model, 'feature_importances_'):
+            importances = model.feature_importances_
+            importance_df = pd.DataFrame({
+                'Feature': feature_columns,
+                'Importance': importances
+            }).sort_values(by='Importance', ascending=False)
+            plt.figure(figsize=(10, 6))
+            sns.barplot(data=importance_df, x='Importance', y='Feature')
+            plt.title(f'Feature Importances – {name}')
+            plt.tight_layout()
+            fname = analysis_folder / f'FeatureImportance{to_camel_case(name)}.png'
+            plt.savefig(fname)
+            plt.close()
+
+    if "Logistic Regression" in models:
+        coef_df = pd.DataFrame({
+            'Feature': feature_columns,
+            'Coefficient': models["Logistic Regression"].coef_[0]
+        }).sort_values(by='Coefficient', key=abs, ascending=False)
+        plt.figure(figsize=(10, 6))
+        sns.barplot(data=coef_df, x='Coefficient', y='Feature', palette='coolwarm')
+        plt.title('Feature Importances – Logistic Regression')
+        plt.tight_layout()
+        plt.savefig(analysis_folder / 'FeatureImportanceLogisticRegression.png')
+        plt.close()
+    pbar.update(1)
+
+    result_df = pd.DataFrame(results, columns=['Model', 'Accuracy', 'F1 Score'])
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=result_df.melt(id_vars='Model'), x='value', y='Model', hue='variable')
+    plt.title('Model Performance Comparison')
+    plt.xlabel('Score')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / 'ModelPerformanceComparison.png')
+    plt.close()
+    pbar.update(1)
+
+    for name, (_, ys) in all_y_scores.items():
+        plt.figure(figsize=(10, 5))
+        sns.histplot(ys, bins=50, kde=True)
+        plt.title(f'Predictive Confidence Distribution – {name}')
+        plt.xlabel('Predicted Probability')
+        plt.ylabel('Frequency')
+        plt.tight_layout()
+        fname = analysis_folder / f'ConfidenceDistribution{to_camel_case(name)}.png'
+        plt.savefig(fname)
+        plt.close()
+    pbar.update(1)
+
+    image_paths = sorted(analysis_folder.glob("*.png"))
+
+    image_paths = image_paths[:10]
+
+    fig, axs = plt.subplots(5, 2, figsize=(22, 30))
+    axs = axs.flatten()
+
+    for i, img_path in enumerate(image_paths):
+        img = mpimg.imread(img_path)
+        axs[i].imshow(img)
+        axs[i].axis('off')
+
+    for j in range(i + 1, len(axs)):
+        axs[j].axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+</code></pre></div></div></div></div>
+<h5 class='mt-2'>Mely bemeneti jellemzők támogatják leginkább az előrejelzést?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-4-f8e22a41-q-1-1-b187dbbf">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-4-f8e22a41-q-1-1-b187dbbf">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-f8e22a41-q-1-1-b187dbbf">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-4-f8e22a41-q-1-1-b187dbbf" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(s):
+    return ''.join(word.capitalize() for word in s.split('_'))
+
+summary_image_stem = "WhichInputFeaturesBestSupportPrediction"
+analysis_folder = Path(f'results/PerformancePredictionBasedOnEarlyActivity/ComparisonOfPredictiveModelPerformance/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing data...",
+    "Training Random Forest and computing importances...",
+    "Training XGBoost and computing SHAP values...",
+    "Saving Random Forest feature importance plot...",
+    "Saving SHAP bar plot...",
+    "Saving SHAP summary plot...",
+    "Saving SHAP beeswarm plot...",
+    "Saving combined summary image..."
+]
+
+with tqdm(total=len(steps), desc="Analyzing input feature importance", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing data...")
+    student_info = data_frames['STUDENTINFO'].copy()
+    registration = data_frames['STUDENTREGISTRATION'].copy()
+    vle = data_frames['STUDENTVLE'].copy()
+
+    activity_agg = (
+        vle
+        .groupby('id_student')
+        .agg(
+            click_count=('sum_click', 'sum'),
+            n_unique_days=('date', lambda x: x.nunique()),
+            study_span_days=('date', lambda x: x.max() - x.min())
+        )
+        .reset_index()
+    )
+
+    df = (
+        student_info
+        .merge(registration[['id_student', 'date_registration']], on='id_student', how='left')
+        .merge(activity_agg, on='id_student', how='left')
+    )
+
+    df['success'] = df['final_result'].isin(['Pass', 'Distinction']).astype(int)
+    df = df.fillna(0)
+
+    feature_columns = ['click_count', 'n_unique_days', 'study_span_days']
+    X = df[feature_columns]
+    y = df['success']
+    pbar.update(1)
+
+    tqdm.write("Step 2: Training Random Forest and computing importances...")
+    X_train, _, y_train, _ = train_test_split(X, y, test_size=0.3, random_state=42)
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf_model.fit(X_train, y_train)
+
+    rf_importance_df = pd.DataFrame({
+        'Feature': feature_columns,
+        'Importance': rf_model.feature_importances_
+    }).sort_values(by='Importance', ascending=False)
+    pbar.update(1)
+
+    tqdm.write("Step 3: Training XGBoost and computing SHAP values...")
+    xgb_model = xgboost.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+    xgb_model.fit(X, y)
+
+    explainer = shap.Explainer(xgb_model)
+    shap_values = explainer(X)
+    pbar.update(1)
+
+    tqdm.write("Step 4: Saving Random Forest feature importance plot...")
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=rf_importance_df, x='Importance', y='Feature', palette='crest')
+    plt.title('Top Predictive Features (Random Forest)')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("RF_Top_Features")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 5: Saving SHAP bar plot...")
+    plt.figure()
+    shap.summary_plot(shap_values, X, plot_type="bar", max_display=15, show=False)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("SHAP_Top_Features_Barplot")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 6: Saving SHAP summary plot...")
+    plt.figure()
+    shap.summary_plot(shap_values, X, max_display=15, show=False)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("SHAP_Summary_Detail")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 7: Saving SHAP beeswarm plot...")
+    plt.figure()
+    shap.plots.beeswarm(shap_values, max_display=15, show=False)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f'{to_camel_case("SHAP_Beeswarm")}.png')
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 8: Saving combined summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+    fig, axs = plt.subplots(2, 2, figsize=(22, 16))
+    axs = axs.flatten()
+    for i, img_path in enumerate(image_paths):
+        img = mpimg.imread(img_path)
+        axs[i].imshow(img)
+        axs[i].axis('off')
+    for j in range(i + 1, len(axs)):
+        axs[j].axis('off')
+
+    plt.tight_layout()
+    combined_image_path = analysis_folder / f"{summary_image_stem}.png"
+    plt.savefig(combined_image_path)
+    plt.close()
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")</code></pre></div></div></div></div>
+<h5 class='mt-2'>Milyen pontosság érhető el különböző mérőszámok alapján?</h5>
+
+<div class="accordion mb-2" id="accordion-code-sec-4-f8e22a41-q-1-2-70b1e453">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-4-f8e22a41-q-1-2-70b1e453">
+      <button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-f8e22a41-q-1-2-70b1e453">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-4-f8e22a41-q-1-2-70b1e453" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'>def to_camel_case(s):
+    return ''.join(word.capitalize() for word in s.split('_'))
+
+summary_image_stem = "ModelPerformanceByMetrics"
+analysis_folder = Path(f'results/PerformancePredictionBasedOnEarlyActivity/ComparisonOfPredictiveModelPerformance/{summary_image_stem}')
+analysis_folder.mkdir(parents=True, exist_ok=True)
+
+steps = [
+    "Preparing data...",
+    "Training models and calculating metrics...",
+    "Generating visualizations...",
+    "Saving summary image..."
+]
+
+with tqdm(total=len(steps), desc="Evaluating metrics across models", ncols=90) as pbar:
+    tqdm.write("Step 1: Preparing data...")
+
+    student_info = data_frames['STUDENTINFO'].copy()
+    registration = data_frames['STUDENTREGISTRATION'].copy()
+    vle = data_frames['STUDENTVLE'].copy()
+
+    activity_agg = (
+        vle
+        .groupby('id_student')
+        .agg(
+            click_count=('sum_click', 'sum'),
+            n_unique_days=('date', lambda x: x.nunique()),
+            study_span_days=('date', lambda x: x.max() - x.min())
+        )
+        .reset_index()
+    )
+
+    df = (
+        student_info
+        .merge(registration[['id_student', 'date_registration']], on='id_student', how='left')
+        .merge(activity_agg, on='id_student', how='left')
+    )
+
+    df['success'] = df['final_result'].isin(['Pass', 'Distinction']).astype(int)
+    df = df.fillna(0)
+
+    feature_columns = ['click_count', 'n_unique_days', 'study_span_days']
+    X = df[feature_columns]
+    y = df['success']
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42)
+    pbar.update(1)
+
+    tqdm.write("Step 2: Training models and calculating metrics...")
+    models = {
+        "Logistic Regression": LogisticRegression(max_iter=500),
+        "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42)
+    }
+
+    if 'xgb_available' in globals() and xgb_available:
+        models["XGBoost"] = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+
+    metrics = []
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else y_pred
+
+        metrics.append({
+            "Model": name,
+            "Accuracy": accuracy_score(y_test, y_pred),
+            "F1 Score": f1_score(y_test, y_pred),
+            "Precision": precision_score(y_test, y_pred),
+            "Recall": recall_score(y_test, y_pred),
+            "AUC": roc_auc_score(y_test, y_prob)
+        })
+
+    metrics_df = pd.DataFrame(metrics).set_index("Model").round(3)
+    pbar.update(1)
+
+    tqdm.write("Step 3: Generating visualizations...")
+
+    plt.figure(figsize=(12, 6))
+    metrics_df.plot(kind='bar', colormap='Set2', ax=plt.gca())
+    plt.title('Model Performance by Metrics')
+    plt.ylabel('Score')
+    plt.xticks(rotation=0)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('ModelPerformanceByMetrics')}.png")
+    plt.close()
+
+    plt.figure(figsize=(10, 6))
+    metrics_df.T.plot(kind='bar', ax=plt.gca())
+    plt.title('Metric Comparison Across Models')
+    plt.ylabel('Score')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('MetricComparison')}.png")
+    plt.close()
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(metrics_df, annot=True, cmap='YlGnBu', vmin=0, vmax=1)
+    plt.title('Model Performance Heatmap')
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case('PerformanceHeatmap')}.png")
+    plt.close()
+
+    first_model = metrics_df.index[0].replace(' ', '')
+    plt.figure(figsize=(8, 5))
+    metrics_df.loc[metrics_df.index[0]].plot(kind='bar', color='skyblue')
+    plt.title(f'{metrics_df.index[0]} Performance')
+    plt.ylabel('Score')
+    plt.ylim(0, 1)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(analysis_folder / f"{to_camel_case(first_model + '_Performance')}.png")
+    plt.close()
+    pbar.update(1)
+
+    tqdm.write("Step 4: Saving summary image...")
+    image_paths = sorted(analysis_folder.glob("*.png"))
+
+    imgs = [Image.open(p) for p in image_paths[:4]]
+    widths, heights = zip(*(img.size for img in imgs))
+    max_width = max(widths)
+    max_height = max(heights)
+
+    combined_img = Image.new('RGB', (2 * max_width, 2 * max_height), color=(255, 255, 255))
+    combined_img.paste(imgs[0], (0, 0))
+    combined_img.paste(imgs[1], (max_width, 0))
+    combined_img.paste(imgs[2], (0, max_height))
+    combined_img.paste(imgs[3], (max_width, max_height))
+
+    summary_image_path = analysis_folder / f"{summary_image_stem}.png"
+    combined_img.save(summary_image_path)
+    pbar.update(1)
+
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")</code></pre></div></div></div></div>
+</div></div></div>
+
+      <div class="accordion-item bg-primary">
+        <h2 class="accordion-header" id="heading-sec-5-4d71f85c">
+          <button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-5-4d71f85c">
+            Python kód, Weboldal generálás
+          </button>
+        </h2>
+        <div id="collapse-sec-5-4d71f85c" class="accordion-collapse collapse">
+          <div class="accordion-body">
+
+<div class="accordion mt-3" id="accordion-code-sec-5-4d71f85c-code-fe0751d8">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-code-sec-5-4d71f85c-code-fe0751d8">
+      <button class="accordion-button collapsed btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-5-4d71f85c-code-fe0751d8">
+        Kattints a kód megjelenítéséhez
+      </button>
+    </h2>
+    <div id="collapse-code-sec-5-4d71f85c-code-fe0751d8" class="accordion-collapse collapse">
+      <div class="accordion-body">
+<pre><code class='language-python'># EXPORT_IGNORE
+
+notebooks = [f for f in os.listdir('.') if f.endswith('.ipynb')]
+if len(notebooks) != 1:
+    raise FileNotFoundError("Exactly one .ipynb file must exist in the directory.")
+notebook_path = notebooks[0]
+base_name = os.path.splitext(notebook_path)[0]
+
+LOGFILE = f"{base_name}.log"
+python_output_path = f"{base_name}.py"
+html_output_path = f"{base_name}.html"
+
+def log_message(msg, level="INFO", to_file=True):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted = f"[{level}] {timestamp} - {msg}"
+    tqdm.write(formatted)
+    if to_file:
+        existing_content = ""
+        if os.path.exists(LOGFILE):
+            with open(LOGFILE, 'r', encoding="utf-8") as f:
+                existing_content = f.read()
+        with open(LOGFILE, 'w', encoding="utf-8") as f:
+            f.write(formatted + "\n" + existing_content)
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+log_message(f"Starting to export notebook: {notebook_path}")
+
+
+export_steps = ["Opening notebook", "Initializing translator", "Filtering cells"]
+pbar = tqdm(total=len(export_steps), desc="Notebook export", unit="step")
+
+
+with open(notebook_path, "r", encoding="utf-8") as f:
+    nb = nbformat.read(f, as_version=4)
+log_message(f"Notebook loaded successfully: {notebook_path}")
+pbar.update(1)
+
+
+translator = GoogleTranslator(source='auto', target='en')
+pbar.update(1)
+
+
+code_cells = []
+markdown_cells = []
+for cell in nb.cells:
+    if cell["cell_type"] == "code" and "# EXPORT_IGNORE" not in cell["source"]:
+        code_cells.append(cell["source"])
+    elif cell["cell_type"] == "markdown":
+        markdown_cells.append(cell["source"])
+log_message(f"Found {len(code_cells)} code cells and {len(markdown_cells)} markdown cells to process.")
+pbar.update(1)
+
+pbar.close()
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+structured_code = []
+
+ignored_prefixes = (
+    "import ", "from ", "os.", "sys.", "console.", "print(", "log_message(",
+    "tqdm", "nbformat", "notebook_path", "python_output_path", "text_output_path",
+    "html_output_path", "translator", "Progress", "LOGFILE", "with Progress",
+    "plt.tight_layout(", "plt.show(", "plt.close(", "plt.title(", "plt.xlabel(",
+    "plt.ylabel(", "plt.legend(", "plt.grid(", "ax.set_", "fig.", "ax.",
+    "plt.xticks(", "plt.yticks(", "pbar.update(", "time.sleep(",
+    "summary_image_stem =", "analysis_folder ="
+)
+
+ignored_statements = [
+    "steps = [",
+    "\"Generating bar chart...\"",
+    "\"Generating pie chart...\"",
+    "\"Generating boxplot...\"",
+    "\"Generating scatter plot...\"",
+    "\"Generating daily activity trend...\"",
+    "\"Generating weekly activity trend...\"",
+    "\"Generating combined image...\""
+]
+
+valid_section_idx = 0
+total_cells = len(nb.cells)
+
+log_message("Starting code translation and structure building...")
+
+with tqdm(total=total_cells, desc="Translating sections", unit="cell") as pbar:
+    previous_markdown = None
+
+    for cell in nb.cells:
+        pbar.update(1)
+
+        if cell["cell_type"] == "markdown":
+            previous_markdown = cell["source"]
+
+        elif cell["cell_type"] == "code":
+            source = cell["source"]
+            if "# EXPORT_IGNORE" in source:
+                continue
+
+            lines = source.splitlines()
+            clean_lines = [
+                line.encode("ascii", errors="ignore").decode("ascii")
+                for line in lines
+                if (
+                    line.strip()
+                    and not any(line.strip().startswith(prefix) for prefix in ignored_prefixes)
+                    and not any(statement in line.strip() for statement in ignored_statements)
+                    and not line.strip().startswith("#")
+                    and not line.strip() in ("{", "}", ")", "(")
+                )
+            ]
+
+            if clean_lines:
+                valid_section_idx += 1
+
+                first_line = previous_markdown.strip().splitlines()[0] if previous_markdown else ""
+                clean_title = first_line.lstrip("#").strip()
+
+                try:
+                    translated_md = translator.translate(clean_title) if clean_title else "No description"
+                except Exception as e:
+                    translated_md = "Translation failed"
+                    log_message(f"ERROR during translation: {e}", level="ERROR")
+
+                structured_code.extend(["", "", f"[ * {translated_md} *]"])
+
+                for line in clean_lines:
+                    wrapped = textwrap.wrap(line, width=100, break_long_words=False)
+                    structured_code.extend(wrapped if wrapped else [""])
+
+                structured_code.append("")
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+export_header = [
+    f"# {os.path.basename(python_output_path)}",
+    "# Automatically generated Python export from Jupyter Notebook",
+    f"# Generated on: {datetime.now().strftime('%Y')}",
+    "# Author: [David Varga]",
+    ""
+]
+
+log_message(
+    f"Saving structured code to file: {python_output_path}"
+)
+
+with open(python_output_path, "w", encoding="utf-8") as f_out:
+    f_out.write(
+        "\n".join(export_header + structured_code) + "\n"
+    )
+
+valid_lines = [
+    line for line in structured_code
+    if line.strip() and not line.strip().startswith("#")
+]
+
+suspicious = all(
+    not any(
+        keyword in line for keyword in (
+            "=", "def ", "for ", "while ", "if ", "import ", "from ",
+            "class ", "return ", "with ", "as ", "elif ", "else:",
+            "try:", "except", "finally", "yield", "lambda ", "print(",
+            "raise ", "assert ", "pass", "break", "continue"
+        )
+    ) for line in valid_lines
+)
+
+if os.path.exists(python_output_path):
+    size = os.path.getsize(python_output_path)
+    line_count = len(structured_code)
+    if size &gt; 0:
+        if suspicious:
+            log_message(
+                f"WARNING: Exported Python file seems minimal or "
+                f"lacks structure: {line_count} lines, {size} bytes",
+                level="WARNING"
+            )
+        else:
+            log_message(
+                f"Python export file generated: {python_output_path} "
+                f"({line_count} code lines, {size} bytes)"
+            )
+    else:
+        log_message(
+            f"WARNING: Exported file exists but appears empty: "
+            f"{python_output_path}",
+            level="WARNING"
+        )
+else:
+    log_message(
+        f"ERROR: Python export file not found after writing: "
+        f"{python_output_path}",
+        level="ERROR"
+    )
+</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+
+log_message("Starting final dark-themed HTML export...")
+
+def generate_id():
+    return uuid4().hex[:8]
+
+section_colors = ["bg-primary", "bg-success", "bg-warning", "bg-danger", "bg-info"]
+color_index = 0
+
+sections = []
+current_section = None
+current_subsection = None
+current_question = None
+
+def append_question():
+    if current_question and current_subsection:
+        current_subsection["questions"].append(current_question)
+
+def append_subsection():
+    if current_subsection and current_section:
+        append_question()
+        current_section["subsections"].append(current_subsection)
+
+def append_section():
+    global color_index
+    if current_section:
+        append_subsection()
+        current_section["color"] = section_colors[color_index % len(section_colors)]
+        color_index += 1
+        sections.append(current_section)
+
+for cell in nb.cells:
+    if cell["cell_type"] == "markdown":
+        lines = cell["source"].strip().splitlines()
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("# ") and not stripped.startswith("##"):
+                append_section()
+                current_section = {
+                    "title": stripped[2:].strip(),
+                    "subsections": [],
+                    "standalone_code": [],
+                    "color": ""
+                }
+                current_subsection = None
+                current_question = None
+            elif stripped.startswith("## "):
+                append_subsection()
+                current_subsection = {
+                    "title": stripped[3:].strip(),
+                    "questions": []
+                }
+                current_question = None
+            elif stripped.startswith("### "):
+                append_question()
+                current_question = {
+                    "title": stripped[4:].strip(),
+                    "code_blocks": []
+                }
+            elif stripped:
+                if current_question:
+                    current_question["code_blocks"].append(f"&lt;p&gt;{stripped}&lt;/p&gt;")
+    elif cell["cell_type"] == "code":
+        code_html = (
+            cell["source"]
+            .replace("&amp;", "&amp;amp;")
+            .replace("&lt;", "&amp;lt;")
+            .replace("&gt;", "&amp;gt;")
+        )
+        wrapped = f"&lt;pre&gt;&lt;code class='language-python'&gt;{code_html}&lt;/code&gt;&lt;/pre&gt;"
+        if current_question:
+            current_question["code_blocks"].append(wrapped)
+        elif current_subsection:
+            current_subsection["questions"].append({
+                "title": "Kódblokk",
+                "code_blocks": [wrapped]
+            })
+        elif current_section:
+            current_section["standalone_code"].append(wrapped)
+
+append_section()
+
+with open(html_output_path, "w", encoding="utf-8") as f_out:
+    f_out.write(f"""&lt;!DOCTYPE html&gt;
+&lt;html lang="hu"&gt;
+&lt;head&gt;
+  &lt;meta charset="UTF-8"&gt;
+  &lt;title&gt;{base_name} Export&lt;/title&gt;
+  &lt;link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"&gt;
+  &lt;link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"&gt;
+  &lt;script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"&gt;&lt;/script&gt;
+  &lt;script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"&gt;&lt;/script&gt;
+  &lt;script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"&gt;&lt;/script&gt;
+  &lt;style&gt;
+    body {{
+      background-color: #121212;
+      color: #f8f9fa;
+      font-family: 'Segoe UI', sans-serif;
+    }}
+    .container {{
+      margin-top: 40px;
+      margin-bottom: 40px;
+    }}
+    .search-box {{
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+    }}
+    .accordion-body {{
+      background-color: #1e1e1e;
+      color: #f8f9fa;
+    }}
+    .accordion-item {{
+      border: 1px solid #2d2d2d;
+    }}
+    .accordion-button {{
+      background-color: #212529;
+      color: #f8f9fa;
+    }}
+    .accordion-button.collapsed {{
+      background-color: #212529;
+      color: #f8f9fa;
+    }}
+    pre {{
+      background-color: #2d2d2d;
+      border-radius: 0.5rem;
+      padding: 15px;
+      overflow-x: auto;
+    }}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class="container"&gt;
+    &lt;h1 class="display-5 text-center mb-4"&gt;Notebook Export – {base_name}&lt;/h1&gt;
+    &lt;div class="search-box"&gt;
+      &lt;input type="text" id="searchInput" class="form-control" placeholder="Keresés..." onkeyup="filterSections(this.value)"&gt;
+      &lt;button class="btn btn-danger" onclick="resetSearch()"&gt;Törlés&lt;/button&gt;
+      &lt;button class="btn btn-info" id="toggleAllBtn" onclick="toggleAllCode()"&gt;Összes kód megnyitása&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;div class="accordion" id="mainAccordion"&gt;
+""")
+
+    for sec_index, section in enumerate(sections):
+        sec_id = f"sec-{sec_index}-{generate_id()}"
+        f_out.write(f"""
+      &lt;div class="accordion-item {section['color']}"&gt;
+        &lt;h2 class="accordion-header" id="heading-{sec_id}"&gt;
+          &lt;button class="accordion-button collapsed btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{sec_id}"&gt;
+            {section['title']}
+          &lt;/button&gt;
+        &lt;/h2&gt;
+        &lt;div id="collapse-{sec_id}" class="accordion-collapse collapse"&gt;
+          &lt;div class="accordion-body"&gt;
+""")
+
+        if section["subsections"]:
+            for sub_index, subsection in enumerate(section["subsections"]):
+                f_out.write(f"&lt;h3 class='mt-3'&gt;{subsection['title']}&lt;/h3&gt;\n")
+                for q_index, question in enumerate(subsection["questions"]):
+                    qid = f"{sec_id}-q-{sub_index}-{q_index}-{generate_id()}"
+                    f_out.write(f"&lt;h5 class='mt-2'&gt;{question['title']}&lt;/h5&gt;\n")
+                    f_out.write(f"""
+&lt;div class="accordion mb-2" id="accordion-code-{qid}"&gt;
+  &lt;div class="accordion-item"&gt;
+    &lt;h2 class="accordion-header" id="heading-code-{qid}"&gt;
+      &lt;button class="accordion-button collapsed btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-{qid}"&gt;
+        Kattints a kód megjelenítéséhez
+      &lt;/button&gt;
+    &lt;/h2&gt;
+    &lt;div id="collapse-code-{qid}" class="accordion-collapse collapse"&gt;
+      &lt;div class="accordion-body"&gt;
+""")
+                    if question["code_blocks"]:
+                        for block in question["code_blocks"]:
+                            f_out.write(block)
+                    else:
+                        f_out.write("&lt;p&gt;&lt;em&gt;Nincs kód ehhez a kérdéshez.&lt;/em&gt;&lt;/p&gt;")
+                    f_out.write("&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;\n")
+        else:
+            single_id = f"{sec_id}-code-{generate_id()}"
+            f_out.write(f"""
+&lt;div class="accordion mt-3" id="accordion-code-{single_id}"&gt;
+  &lt;div class="accordion-item"&gt;
+    &lt;h2 class="accordion-header" id="heading-code-{single_id}"&gt;
+      &lt;button class="accordion-button collapsed btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-{single_id}"&gt;
+        Kattints a kód megjelenítéséhez
+      &lt;/button&gt;
+    &lt;/h2&gt;
+    &lt;div id="collapse-code-{single_id}" class="accordion-collapse collapse"&gt;
+      &lt;div class="accordion-body"&gt;
+""")
+            if section["standalone_code"]:
+                for block in section["standalone_code"]:
+                    f_out.write(block)
+            else:
+                f_out.write("&lt;p&gt;&lt;em&gt;Nincs kód ehhez a szekcióhoz.&lt;/em&gt;&lt;/p&gt;")
+            f_out.write("&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;\n")
+
+        f_out.write("&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;\n")
+
+    f_out.write("""
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;script&gt;
+    function filterSections(keyword) {
+      keyword = keyword.toLowerCase();
+      const sections = document.querySelectorAll("#mainAccordion &gt; .accordion-item");
+
+      sections.forEach(section =&gt; {
+        const text = section.innerText.toLowerCase();
+        section.style.display = text.includes(keyword) ? "" : "none";
+      });
+    }
+    function resetSearch() {
+      document.getElementById("searchInput").value = "";
+      filterSections("");
+    }
+  let allOpen = false;
+
+    function toggleAllCode() {
+      const allButtons = document.querySelectorAll(".accordion-button");
+      allButtons.forEach(btn =&gt; {
+        const collapsed = btn.classList.contains("collapsed");
+        if ((allOpen &amp;&amp; !collapsed) || (!allOpen &amp;&amp; collapsed)) {
+          btn.click();
+        }
+      });
+      allOpen = !allOpen;
+      const btn = document.getElementById("toggleAllBtn");
+      btn.textContent = allOpen ? "Összes kód összecsukása" : "Összes kód megnyitása";
+    }
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+""")
+
+if os.path.exists(html_output_path):
+    size = os.path.getsize(html_output_path)
+    if size &gt; 0:
+        log_message(f"HTML export file generated: {html_output_path} ({size} bytes)")
+    else:
+        log_message(f"WARNING: HTML file exists but appears empty: {html_output_path}", level="WARNING")
+else:
+    log_message(f"ERROR: HTML export file not found after writing: {html_output_path}", level="ERROR")
+</code></pre></div></div></div></div>
+</div></div></div>
+
+    </div>
+  </div>
+  <script>
+    function filterSections(keyword) {
+      keyword = keyword.toLowerCase();
+      const sections = document.querySelectorAll("#mainAccordion > .accordion-item");
+
+      sections.forEach(section => {
+        const text = section.innerText.toLowerCase();
+        section.style.display = text.includes(keyword) ? "" : "none";
+      });
+    }
+    function resetSearch() {
+      document.getElementById("searchInput").value = "";
+      filterSections("");
+    }
+  let allOpen = false;
+
+    function toggleAllCode() {
+      const allButtons = document.querySelectorAll(".accordion-button");
+      allButtons.forEach(btn => {
+        const collapsed = btn.classList.contains("collapsed");
+        if ((allOpen && !collapsed) || (!allOpen && collapsed)) {
+          btn.click();
+        }
+      });
+      allOpen = !allOpen;
+      const btn = document.getElementById("toggleAllBtn");
+      btn.textContent = allOpen ? "Összes kód összecsukása" : "Összes kód megnyitása";
+    }
+  </script>
+</body>
+</html>
