@@ -82,12 +82,12 @@
     <div class="accordion" id="mainAccordion">
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-0-c10797ed">
-          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-0-c10797ed">
+        <h2 class="accordion-header" id="heading-sec-0-eb868c5d">
+          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-0-eb868c5d">
             A csomagok telepítése és a követelmények kezelése
           </button>
         </h2>
-        <div id="collapse-sec-0-c10797ed" class="accordion-collapse collapse">
+        <div id="collapse-sec-0-eb868c5d" class="accordion-collapse collapse">
           <div class="accordion-body">
 <pre><code class='language-python'># EXPORT_IGNORE
 
@@ -138,9 +138,9 @@ import nbformat
 import textwrap
 import ast
 import subprocess
+import importlib.util
 
-from deep_translator import GoogleTranslator
-</code></pre><pre><code class='language-python'># EXPORT_IGNORE
+from deep_translator import GoogleTranslator</code></pre><pre><code class='language-python'># EXPORT_IGNORE
 
 notebooks = [f for f in os.listdir('.') if f.endswith('.ipynb')]
 if len(notebooks) != 1:
@@ -207,10 +207,19 @@ def find_first_notebook():
     return None
 </code></pre><pre><code class='language-python'># EXPORT_IGNORE
 
-builtin_modules = {
+BUILTIN_FALLBACK = {
     "os", "sys", "datetime", "subprocess", "ast", "shutil",
-    "rich.console", "rich.text", "rich.progress", "collections", "warnings"
+    "warnings", "glob", "uuid", "re", "pathlib", "textwrap", "importlib"
 }
+
+def is_builtin_module(module_name):
+    if module_name in BUILTIN_FALLBACK:
+        return True
+    try:
+        spec = importlib.util.find_spec(module_name)
+        return spec is not None and spec.origin in ('built-in', 'frozen')
+    except ModuleNotFoundError:
+        return False</code></pre><pre><code class='language-python'># EXPORT_IGNORE
 
 def install_required_packages():
     notebook_name = find_first_notebook()
@@ -224,7 +233,7 @@ def install_required_packages():
         log_message("ERROR: No packages found in the notebook!")
         return [], [], False
 
-    required_packages = [pkg for pkg in required_packages if pkg not in builtin_modules]
+    required_packages = [pkg for pkg in required_packages if not is_builtin_module(pkg)]
     installed_packages = []
     failed_packages = []
     all_installed = True
@@ -286,8 +295,11 @@ def update_requirements():
                     log_message(f"Skipping one cell due to parsing error: {str(e)}", level="WARNING")
                     continue
 
-        required_packages = [pkg for pkg in required_packages if pkg not in builtin_modules and pkg != "collections"]
-        unique_packages = sorted(set(pkg.split('.')[0] for pkg in required_packages))
+        filtered_packages = [
+            pkg for pkg in required_packages
+            if not is_builtin_module(pkg) and pkg != "collections"
+        ]
+        unique_packages = sorted(set(pkg.split('.')[0] for pkg in filtered_packages))
 
         package_aliases = {
             "sklearn": "scikit-learn",
@@ -331,16 +343,15 @@ results_folder = 'results'
 if os.path.exists(results_folder):
     shutil.rmtree(results_folder)
 
-log_message(f"Final Summary: {final_summary}")
-</code></pre></div></div></div>
+log_message(f"Final Summary: {final_summary}")</code></pre></div></div></div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-1-cf081008">
-          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-1-cf081008">
+        <h2 class="accordion-header" id="heading-sec-1-b2184daf">
+          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-1-b2184daf">
             A CSV fájlok betöltése és elemzése
           </button>
         </h2>
-        <div id="collapse-sec-1-cf081008" class="accordion-collapse collapse">
+        <div id="collapse-sec-1-b2184daf" class="accordion-collapse collapse">
           <div class="accordion-body">
 <pre><code class='language-python'># EXPORT_IGNORE
 
@@ -434,12 +445,12 @@ else:
 </code></pre></div></div></div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-2-740a3832">
-          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-2-740a3832">
+        <h2 class="accordion-header" id="heading-sec-2-81c9f66c">
+          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-2-81c9f66c">
             Az adattisztítása
           </button>
         </h2>
-        <div id="collapse-sec-2-740a3832" class="accordion-collapse collapse">
+        <div id="collapse-sec-2-81c9f66c" class="accordion-collapse collapse">
           <div class="accordion-body">
 <pre><code class='language-python'># EXPORT_IGNORE
 
@@ -498,23 +509,23 @@ except Exception as e:
 </code></pre></div></div></div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-3-f4f9c53c">
-          <button class="accordion-button collapsed btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-3-f4f9c53c">
+        <h2 class="accordion-header" id="heading-sec-3-274c94c1">
+          <button class="accordion-button collapsed btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-3-274c94c1">
             Tanulói viselkedés és mintázatok elemzése
           </button>
         </h2>
-        <div id="collapse-sec-3-f4f9c53c" class="accordion-collapse collapse">
+        <div id="collapse-sec-3-274c94c1" class="accordion-collapse collapse">
           <div class="accordion-body">
 <h3 class='mt-3'>Tanulási idő és visszatérés minták</h3>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-0-0-23684fdd">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-0-0-f4d4151a">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-0-0-23684fdd">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-0-0-23684fdd">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-0-0-f4d4151a">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-0-0-f4d4151a">
         Mikor jellemző a legnagyobb aktivitás a beadáshoz képest?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-0-0-23684fdd" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-0-0-f4d4151a" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -666,17 +677,18 @@ with tqdm(total=len(steps), desc="Visualizing results", ncols=90) as pbar:
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-0-1-d5bc8765">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-0-1-fdaf9df2">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-0-1-d5bc8765">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-0-1-d5bc8765">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-0-1-fdaf9df2">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-0-1-fdaf9df2">
         Vannak-e tipikus visszatérési ciklusok?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-0-1-d5bc8765" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-0-1-fdaf9df2" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -785,17 +797,19 @@ with tqdm(total=len(steps), desc="Analyzing return cycles", ncols=90) as pbar:
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
+
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-0-2-7300a75f">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-0-2-f60c4ba1">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-0-2-7300a75f">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-0-2-7300a75f">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-0-2-f60c4ba1">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-0-2-f60c4ba1">
         A hosszabb tanulási idő jobb eredményt jelent?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-0-2-7300a75f" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-0-2-f60c4ba1" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split('_'))
@@ -899,17 +913,18 @@ with tqdm(total=len(steps), desc="Analyzing extended study time metrics", ncols=
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")</code></pre></div></div></div></div>
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")</code></pre></div></div></div></div>
 <h3 class='mt-3'>Tanulási típusok azonosítása</h3>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-1-0-8f68d15c">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-1-0-bf7eae69">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-1-0-8f68d15c">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-1-0-8f68d15c">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-1-0-bf7eae69">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-1-0-bf7eae69">
         Csoportosítással lehet-e tanulócsoportokat azonosítani?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-1-0-8f68d15c" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-1-0-bf7eae69" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1058,17 +1073,18 @@ with tqdm(total=len(steps), desc="Clustering student groups", ncols=90) as pbar:
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-1-1-d6920e77">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-1-1-63540a02">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-1-1-d6920e77">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-1-1-d6920e77">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-1-1-63540a02">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-1-1-63540a02">
         Hogyan változik az aktivitás a tanulási típus szerint?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-1-1-d6920e77" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-1-1-63540a02" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split('_'))
@@ -1077,7 +1093,6 @@ summary_image_stem = "HowDoesActivityDifferByLearningStyle"
 analysis_folder = Path(f"results/StudentBehaviorAndPatternAnalysis/IdentifyingLearningTypes/{summary_image_stem}")
 analysis_folder.mkdir(parents=True, exist_ok=True)
 
-# --- KMeans cluster assignment előkészítése ---
 activity_df = data_frames['STUDENTVLE'].copy()
 activity_df['date'] = pd.to_timedelta(activity_df['date'], unit='D') + pd.Timestamp('2013-01-01')
 
@@ -1093,7 +1108,6 @@ features_scaled = scaler.fit_transform(features_imputed)
 kmeans = KMeans(n_clusters=3, random_state=42)
 features_imputed['kmeans_cluster'] = kmeans.fit_predict(features_scaled)
 
-# --- Lépések ---
 steps = [
     "Filtering data for clustered students...",
     "Extracting temporal activity features...",
@@ -1187,17 +1201,18 @@ with tqdm(total=len(steps), desc="Analyzing activity by learning type", ncols=90
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-1-2-99354764">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-1-2-af49a278">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-1-2-99354764">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-1-2-99354764">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-1-2-af49a278">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-1-2-af49a278">
         Van-e kapcsolat az aktivitás és a teljesítmény között?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-1-2-99354764" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-1-2-af49a278" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1297,18 +1312,19 @@ with tqdm(total=len(steps), desc="Analyzing activity vs. performance", ncols=90)
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 <h3 class='mt-3'>Tartalomhasználati minták</h3>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-2-0-3c92ec59">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-2-0-aa17a417">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-2-0-3c92ec59">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-2-0-3c92ec59">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-2-0-aa17a417">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-2-0-aa17a417">
         Mely tananyagtípusokat használják a tanulók a leggyakrabban?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-2-0-3c92ec59" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-2-0-aa17a417" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1359,7 +1375,6 @@ with tqdm(total=len(steps), desc="Analyzing content usage patterns", ncols=90) a
         wedgeprops={'edgecolor': 'black'}
     )
 
-    # Create custom labels with percentage
     legend_labels = [
         f"{label} ({activity_summary[label] / activity_summary.sum() * 100:.1f}%)"
         for label in activity_summary.index
@@ -1428,17 +1443,18 @@ with tqdm(total=len(steps), desc="Analyzing content usage patterns", ncols=90) a
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-2-1-485dd194">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-2-1-58b45513">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-2-1-485dd194">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-2-1-485dd194">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-2-1-58b45513">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-2-1-58b45513">
         Különbözik-e a sikeres és kevésbé sikeres tanulók tartalomhasználati mintázata?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-2-1-485dd194" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-2-1-58b45513" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1554,17 +1570,18 @@ with tqdm(total=len(steps), desc="Analyzing content usage vs. performance", ncol
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-3-f4f9c53c-q-2-2-b8b4455d">
+<div class="accordion mb-2" id="accordion-code-sec-3-274c94c1-q-2-2-76ed9bf6">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-3-f4f9c53c-q-2-2-b8b4455d">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-f4f9c53c-q-2-2-b8b4455d">
+    <h2 class="accordion-header" id="heading-code-sec-3-274c94c1-q-2-2-76ed9bf6">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-3-274c94c1-q-2-2-76ed9bf6">
         Milyen tartalomsorrend a leggyakoribb?
       </button>
     </h2>
-    <div id="collapse-code-sec-3-f4f9c53c-q-2-2-b8b4455d" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-3-274c94c1-q-2-2-76ed9bf6" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1701,28 +1718,29 @@ with tqdm(total=len(steps), desc="Analyzing content sequence patterns", ncols=90
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 </div></div></div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-4-d1ea7637">
-          <button class="accordion-button collapsed btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-4-d1ea7637">
+        <h2 class="accordion-header" id="heading-sec-4-ec80e52d">
+          <button class="accordion-button collapsed btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-4-ec80e52d">
             Teljesítményelőrejelzés korai aktivitás alapján
           </button>
         </h2>
-        <div id="collapse-sec-4-d1ea7637" class="accordion-collapse collapse">
+        <div id="collapse-sec-4-ec80e52d" class="accordion-collapse collapse">
           <div class="accordion-body">
 <h3 class='mt-3'>Korai aktivitási minták azonosítása</h3>
 
-<div class="accordion mb-2" id="accordion-code-sec-4-d1ea7637-q-0-0-da7c10e8">
+<div class="accordion mb-2" id="accordion-code-sec-4-ec80e52d-q-0-0-dc40963d">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-4-d1ea7637-q-0-0-da7c10e8">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-d1ea7637-q-0-0-da7c10e8">
+    <h2 class="accordion-header" id="heading-code-sec-4-ec80e52d-q-0-0-dc40963d">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-ec80e52d-q-0-0-dc40963d">
         Milyen mintázatok jellemzik a sikeres tanulókat az első napokban?
       </button>
     </h2>
-    <div id="collapse-code-sec-4-d1ea7637-q-0-0-da7c10e8" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-4-ec80e52d-q-0-0-dc40963d" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1850,17 +1868,18 @@ with tqdm(total=len(steps), desc="Analyzing early success patterns", ncols=90) a
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-4-d1ea7637-q-0-1-0e1e92f8">
+<div class="accordion mb-2" id="accordion-code-sec-4-ec80e52d-q-0-1-06b3acba">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-4-d1ea7637-q-0-1-0e1e92f8">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-d1ea7637-q-0-1-0e1e92f8">
+    <h2 class="accordion-header" id="heading-code-sec-4-ec80e52d-q-0-1-06b3acba">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-ec80e52d-q-0-1-06b3acba">
         Felismerhetők-e tipikus aktivitási minták az első napok alapján?
       </button>
     </h2>
-    <div id="collapse-code-sec-4-d1ea7637-q-0-1-0e1e92f8" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-4-ec80e52d-q-0-1-06b3acba" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -1975,17 +1994,18 @@ combined_path = analysis_folder / f"{summary_image_stem}.png"
 plt.savefig(combined_path)
 plt.close()
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-4-d1ea7637-q-0-2-3d1c19f6">
+<div class="accordion mb-2" id="accordion-code-sec-4-ec80e52d-q-0-2-c3d48cfd">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-4-d1ea7637-q-0-2-3d1c19f6">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-d1ea7637-q-0-2-3d1c19f6">
+    <h2 class="accordion-header" id="heading-code-sec-4-ec80e52d-q-0-2-c3d48cfd">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-ec80e52d-q-0-2-c3d48cfd">
         Milyen eseménytípusok a leggyakoribbak a sikeres tanulóknál?
       </button>
     </h2>
-    <div id="collapse-code-sec-4-d1ea7637-q-0-2-3d1c19f6" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-4-ec80e52d-q-0-2-c3d48cfd" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(text):
     return ''.join(word.capitalize() for word in text.split())
@@ -2100,18 +2120,19 @@ with tqdm(total=len(steps), desc="Analyzing most common activity types (successf
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 <h3 class='mt-3'>Prediktív modellek teljesítményének összehasonlítása</h3>
 
-<div class="accordion mb-2" id="accordion-code-sec-4-d1ea7637-q-1-0-c43d28f8">
+<div class="accordion mb-2" id="accordion-code-sec-4-ec80e52d-q-1-0-bd02d0a9">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-4-d1ea7637-q-1-0-c43d28f8">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-d1ea7637-q-1-0-c43d28f8">
+    <h2 class="accordion-header" id="heading-code-sec-4-ec80e52d-q-1-0-bd02d0a9">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-ec80e52d-q-1-0-bd02d0a9">
         Melyik gépi tanulási modell nyújtja a legjobb előrejelzést?
       </button>
     </h2>
-    <div id="collapse-code-sec-4-d1ea7637-q-1-0-c43d28f8" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-4-ec80e52d-q-1-0-bd02d0a9" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(s):
     return ''.join(word.capitalize() for word in s.split())
@@ -2301,17 +2322,18 @@ with tqdm(total=len(steps), desc="Evaluating ML models", ncols=90) as pbar:
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")
 </code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-4-d1ea7637-q-1-1-a43bf64d">
+<div class="accordion mb-2" id="accordion-code-sec-4-ec80e52d-q-1-1-9e2f8cea">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-4-d1ea7637-q-1-1-a43bf64d">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-d1ea7637-q-1-1-a43bf64d">
+    <h2 class="accordion-header" id="heading-code-sec-4-ec80e52d-q-1-1-9e2f8cea">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-ec80e52d-q-1-1-9e2f8cea">
         Mely bemeneti jellemzők támogatják leginkább az előrejelzést?
       </button>
     </h2>
-    <div id="collapse-code-sec-4-d1ea7637-q-1-1-a43bf64d" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-4-ec80e52d-q-1-1-9e2f8cea" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(s):
     return ''.join(word.capitalize() for word in s.split('_'))
@@ -2431,16 +2453,17 @@ with tqdm(total=len(steps), desc="Analyzing input feature importance", ncols=90)
     plt.close()
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")</code></pre></div></div></div></div>
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")</code></pre></div></div></div></div>
 
-<div class="accordion mb-2" id="accordion-code-sec-4-d1ea7637-q-1-2-f2dc7a6d">
+<div class="accordion mb-2" id="accordion-code-sec-4-ec80e52d-q-1-2-a6a68e84">
   <div class="accordion-item">
-    <h2 class="accordion-header" id="heading-code-sec-4-d1ea7637-q-1-2-f2dc7a6d">
-      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-d1ea7637-q-1-2-f2dc7a6d">
+    <h2 class="accordion-header" id="heading-code-sec-4-ec80e52d-q-1-2-a6a68e84">
+      <button class="accordion-button collapsed btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-code-sec-4-ec80e52d-q-1-2-a6a68e84">
         Milyen pontosság érhető el különböző mérőszámok alapján?
       </button>
     </h2>
-    <div id="collapse-code-sec-4-d1ea7637-q-1-2-f2dc7a6d" class="accordion-collapse collapse">
+    <div id="collapse-code-sec-4-ec80e52d-q-1-2-a6a68e84" class="accordion-collapse collapse">
       <div class="accordion-body">
 <pre><code class='language-python'>def to_camel_case(s):
     return ''.join(word.capitalize() for word in s.split('_'))
@@ -2576,23 +2599,21 @@ with tqdm(total=len(steps), desc="Evaluating metrics across models", ncols=90) a
     combined_img.save(summary_image_path)
     pbar.update(1)
 
-tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}")</code></pre></div></div></div></div>
+tqdm.write(f"{summary_image_stem} visualizations saved to: {analysis_folder}") 
+log_message(f"{summary_image_stem} visualizations saved to: {analysis_folder}", level="INFO")</code></pre></div></div></div></div>
 </div></div></div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-5-60ee4a87">
-          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-5-60ee4a87">
+        <h2 class="accordion-header" id="heading-sec-5-b2e4566c">
+          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-5-b2e4566c">
             Weboldal létrehozás
           </button>
         </h2>
-        <div id="collapse-sec-5-60ee4a87" class="accordion-collapse collapse">
+        <div id="collapse-sec-5-b2e4566c" class="accordion-collapse collapse">
           <div class="accordion-body">
 <pre><code class='language-python'># EXPORT_IGNORE
 
-with open(notebook_path, "r", encoding="utf-8") as f:
-    nb = nbformat.read(f, as_version=4)
-log_message(f"Notebook loaded successfully: {notebook_path}")
-pbar.update(1)
+nb = nbformat.read(notebook_path, as_version=4)
 
 log_message("Starting final HTML export...")
 
@@ -2839,12 +2860,12 @@ else:
 </code></pre></div></div></div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-sec-6-e5a9c351">
-          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-6-e5a9c351">
+        <h2 class="accordion-header" id="heading-sec-6-66b6876b">
+          <button class="accordion-button collapsed btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-sec-6-66b6876b">
             Python kód generálás
           </button>
         </h2>
-        <div id="collapse-sec-6-e5a9c351" class="accordion-collapse collapse">
+        <div id="collapse-sec-6-66b6876b" class="accordion-collapse collapse">
           <div class="accordion-body">
 <pre><code class='language-python'># EXPORT_IGNORE
 
